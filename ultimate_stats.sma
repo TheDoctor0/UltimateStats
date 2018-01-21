@@ -25,6 +25,9 @@
 #define set_bit(%2,%1) (%1 |= (1<<(%2&31)))
 #define rem_bit(%2,%1) (%1 &= ~(1 <<(%2&31)))
 
+#define get_elo(%1,%2) (1.0 / (1.0 + floatpower(10.0, ((%1 - %2) / 400.0))))
+#define set_elo(%1,%2,%3) (%1 + 20.0 * (%2 - %3))
+
 //FEATURES:
 //All from StatsX
 //All from CsStats
@@ -32,8 +35,7 @@
 //Rankings and top15 for all features + weapons
 //Skill - elo rank
 //#define get_elo(%1,%2) (1.0 / (1.0 + floatpower(10.0, ((%1 - %2) / 400.0))))
-//#define set_elo(%1,%2,%3) (%1 + 30.0 * (%2 - %3))
-//Replace 0.0 and 1.0 chance of winning by calculated change by rating
+//#define set_elo(%1,%2,%3) (%1 + 20.0 * (%2 - %3))
 //
 //NATIVES:
 //get_stats(index,stats[8],bodyhits[8],name[],len); - overall stats for index from ranking  (https://www.amxmodx.org/api/tsstats/get_stats)
@@ -63,7 +65,7 @@ enum _:statsData { STATS_KILLS = HIT_END, STATS_DEATHS, STATS_HS, STATS_TK, STAT
 enum _:winers { THIRD, SECOND, FIRST };
 enum _:save { NORMAL = -1, ROUND, FINAL, MAP_END };
 enum _:playerData{ BOMB_DEFUSIONS = STATS_END, BOMB_DEFUSED, BOMB_PLANTED, BOMB_EXPLODED, RANK, ADMIN, PLAYER_ID, FIRST_VISIT, LAST_VISIT, TIME, CONNECTS, ASSISTS, ROUNDS, ROUNDS_CT, ROUNDS_T, WIN_CT, WIN_T, BRONZE, SILVER, 
-	GOLD, MEDALS, BEST_STATS, BEST_KILLS, BEST_DEATHS, BEST_HS, CURRENT_STATS, CURRENT_KILLS, CURRENT_DEATHS, CURRENT_HS, NAME[32], SAFE_NAME[64], STEAMID[32], IP[16] };
+	GOLD, MEDALS, BEST_STATS, BEST_KILLS, BEST_DEATHS, BEST_HS, CURRENT_STATS, CURRENT_KILLS, CURRENT_DEATHS, CURRENT_HS, Float:ELO_RANK, NAME[32], SAFE_NAME[64], STEAMID[32], IP[16] };
 
 new playerStats[MAX_PLAYERS + 1][playerData], playerRStats[MAX_PLAYERS + 1][playerData], playerWStats[MAX_PLAYERS + 1][MAX_WEAPONS][STATS_END], playerWRStats[MAX_PLAYERS + 1][MAX_WEAPONS][STATS_END], 
 	playerAStats[MAX_PLAYERS + 1][MAX_PLAYERS + 1][STATS_END], playerVStats[MAX_PLAYERS + 1][MAX_PLAYERS + 1][STATS_END], weaponsAmmo[MAX_PLAYERS + 1][MAX_WEAPONS], statsForwards[forwards], statsNum,
@@ -194,7 +196,7 @@ public client_connect(id)
 
 	sql_safe_string(playerStats[id][NAME], playerStats[id][SAFE_NAME], charsmax(playerStats[][SAFE_NAME]));
 
-	set_task(0.25, "load_stats", id);
+	set_task(random_float(0.1, 1.0), "load_stats", id);
 }
 
 public client_authorized(id)
@@ -414,15 +416,6 @@ public damage(victim)
 		playerVStats[attacker][0][STATS_HITS]++;
 		playerAStats[victim][0][STATS_HITS]++;
 
-		playerStats[attacker][HIT_GENERIC]++;
-		playerRStats[attacker][HIT_GENERIC]++;
-		playerWStats[attacker][weapon][HIT_GENERIC]++;
-		playerWRStats[attacker][weapon][HIT_GENERIC]++;
-		playerVStats[attacker][victim][HIT_GENERIC]++;
-		playerAStats[victim][attacker][HIT_GENERIC]++;
-		playerVStats[attacker][0][HIT_GENERIC]++;
-		playerAStats[victim][0][HIT_GENERIC]++;
-
 		if (hitPlace) {
 			playerStats[attacker][hitPlace]++;
 			playerRStats[attacker][hitPlace]++;
@@ -451,6 +444,9 @@ public death(killer, victim, weapon, hitPlace, teamKill)
 	save_stats(victim, NORMAL);
 
 	if (is_user_connected(killer) && killer != victim) {
+		playerStats[killer][ELO_RANK] = _:set_elo(playerStats[killer][ELO_RANK], 1.0, get_elo(playerStats[victim][ELO_RANK], playerStats[killer][ELO_RANK]));
+		playerStats[victim][ELO_RANK] = floatmax(1.0, set_elo(playerStats[victim][ELO_RANK], 0.0, get_elo(playerStats[killer][ELO_RANK], playerStats[victim][ELO_RANK])));
+
 		playerStats[killer][CURRENT_KILLS]++;
 		playerStats[killer][STATS_KILLS]++;
 		playerRStats[killer][STATS_KILLS]++;
@@ -1158,7 +1154,7 @@ public sql_init()
 	add(queryData,  charsmax(queryData), "`damage` INT NOT NULL DEFAULT 0, `rounds` INT NOT NULL DEFAULT 0, `rounds_ct` INT NOT NULL DEFAULT 0, `rounds_t` INT NOT NULL DEFAULT 0, `wins_ct` INT NOT NULL DEFAULT 0, `wins_t` INT NOT NULL DEFAULT 0, "); 
 	add(queryData,  charsmax(queryData), "`connects` INT NOT NULL DEFAULT 0, `time` INT NOT NULL DEFAULT 0, `gold` INT NOT NULL DEFAULT 0, `silver` INT NOT NULL DEFAULT 0, `bronze` INT NOT NULL DEFAULT 0, `medals` INT NOT NULL DEFAULT 0, "); 
 	add(queryData,  charsmax(queryData), "`best_kills` INT NOT NULL DEFAULT 0, `best_deaths` INT NOT NULL DEFAULT 0, `best_hs` INT NOT NULL DEFAULT 0, `best_stats` INT NOT NULL DEFAULT 0, `defusions` INT NOT NULL DEFAULT 0, `defused` INT NOT NULL DEFAULT 0, ");
-	add(queryData,  charsmax(queryData), "`planted` INT NOT NULL DEFAULT 0, `exploded` INT NOT NULL DEFAULT 0, `h_0` INT NOT NULL DEFAULT 0, `h_1` INT NOT NULL DEFAULT 0, `h_2` INT NOT NULL DEFAULT 0, `h_3` INT NOT NULL DEFAULT 0, `h_4` INT NOT NULL DEFAULT 0, "); 
+	add(queryData,  charsmax(queryData), "`planted` INT NOT NULL DEFAULT 0, `exploded` INT NOT NULL DEFAULT 0, `elo_rank` DOUBLE NOT NULL DEFAULT 100, `h_1` INT NOT NULL DEFAULT 0, `h_2` INT NOT NULL DEFAULT 0, `h_3` INT NOT NULL DEFAULT 0, `h_4` INT NOT NULL DEFAULT 0, "); 
 	add(queryData,  charsmax(queryData), "`h_5` INT NOT NULL DEFAULT 0, `h_6` INT NOT NULL DEFAULT 0, `h_7` INT NOT NULL DEFAULT 0, `first_visit` BIGINT NOT NULL DEFAULT 0, `last_visit` BIGINT NOT NULL DEFAULT 0,  PRIMARY KEY(`id`), UNIQUE KEY `name` (`name`));");
 
 	new Handle:query = SQL_PrepareQuery(connection, queryData);
@@ -1237,7 +1233,6 @@ public load_stats_handle(failState, Handle:query, error[], errorNum, playerId[],
 		playerStats[id][STATS_HITS] = SQL_ReadResult(query, SQL_FieldNameToNum(query, "hits"));
 		playerStats[id][STATS_DAMAGE] = SQL_ReadResult(query, SQL_FieldNameToNum(query, "damage"));
 		playerStats[id][STATS_RANK] = SQL_ReadResult(query, SQL_FieldNameToNum(query, "rank"));
-		playerStats[id][HIT_GENERIC] = SQL_ReadResult(query, SQL_FieldNameToNum(query, "h_0"));
 		playerStats[id][HIT_HEAD] = SQL_ReadResult(query, SQL_FieldNameToNum(query, "h_1"));
 		playerStats[id][HIT_CHEST] = SQL_ReadResult(query, SQL_FieldNameToNum(query, "h_2"));
 		playerStats[id][HIT_STOMACH] = SQL_ReadResult(query, SQL_FieldNameToNum(query, "h_3"));
@@ -1267,6 +1262,8 @@ public load_stats_handle(failState, Handle:query, error[], errorNum, playerId[],
 		playerStats[id][BEST_DEATHS] = SQL_ReadResult(query, SQL_FieldNameToNum(query, "best_deaths"));
 		playerStats[id][FIRST_VISIT] = SQL_ReadResult(query, SQL_FieldNameToNum(query, "first_visit"));
 		playerStats[id][LAST_VISIT] = SQL_ReadResult(query, SQL_FieldNameToNum(query, "last_visit"));
+
+		SQL_ReadResult(query, SQL_FieldNameToNum(query, "elo"), playerStats[id][ELO_RANK]);
 	} else {
 		static queryData[256], queryTemp[64], playerId[2];
 
@@ -1347,7 +1344,6 @@ public load_weapons_stats_handle(failState, Handle:query, error[], errorNum, pla
 		playerWStats[id][weapon][STATS_HITS] = SQL_ReadResult(query, SQL_FieldNameToNum(query, "hits"));
 		playerWStats[id][weapon][STATS_DAMAGE] = SQL_ReadResult(query, SQL_FieldNameToNum(query, "damage"));
 		playerWStats[id][weapon][STATS_RANK] = SQL_ReadResult(query, SQL_FieldNameToNum(query, "rank"));
-		playerWStats[id][weapon][HIT_GENERIC] = SQL_ReadResult(query, SQL_FieldNameToNum(query, "h_0"));
 		playerWStats[id][weapon][HIT_HEAD] = SQL_ReadResult(query, SQL_FieldNameToNum(query, "h_1"));
 		playerWStats[id][weapon][HIT_CHEST] = SQL_ReadResult(query, SQL_FieldNameToNum(query, "h_2"));
 		playerWStats[id][weapon][HIT_STOMACH] = SQL_ReadResult(query, SQL_FieldNameToNum(query, "h_3"));
@@ -1398,8 +1394,8 @@ stock save_stats(id, end = 0)
 	playerStats[id][WIN_CT], playerStats[id][WIN_T], playerStats[id][CONNECTS], playerStats[id][TIME] + get_user_time(id), playerStats[id][BOMB_DEFUSIONS], playerStats[id][BOMB_DEFUSED], playerStats[id][BOMB_PLANTED], playerStats[id][BOMB_EXPLODED]); 
 	add(queryData, charsmax(queryData), queryTemp);
 	
-	formatex(queryTemp, charsmax(queryTemp), "h_0 = %d, h_1 = %d, h_2 = %d, h_3 = %d, h_4 = %d, h_5 = %d, h_6 = %d, h_7 = %d, last_visit = UNIX_TIMESTAMP()",
-	playerStats[id][HIT_GENERIC], playerStats[id][HIT_HEAD], playerStats[id][HIT_CHEST], playerStats[id][HIT_STOMACH], playerStats[id][HIT_RIGHTARM], playerStats[id][HIT_LEFTARM], playerStats[id][HIT_RIGHTLEG], playerStats[id][HIT_LEFTLEG]);
+	formatex(queryTemp, charsmax(queryTemp), "elo_rank = %.2f, h_1 = %d, h_2 = %d, h_3 = %d, h_4 = %d, h_5 = %d, h_6 = %d, h_7 = %d, last_visit = UNIX_TIMESTAMP()",
+	playerStats[id][ELO_RANK], playerStats[id][HIT_HEAD], playerStats[id][HIT_CHEST], playerStats[id][HIT_STOMACH], playerStats[id][HIT_RIGHTARM], playerStats[id][HIT_LEFTARM], playerStats[id][HIT_RIGHTLEG], playerStats[id][HIT_LEFTLEG]);
 	add(queryData, charsmax(queryData), queryTemp);
 
 	playerStats[id][CURRENT_STATS] = playerStats[id][CURRENT_KILLS] * 2 + playerStats[id][CURRENT_HS] - playerStats[id][CURRENT_DEATHS] * 2;
@@ -1476,8 +1472,8 @@ stock save_weapons_stats(id, end = 0)
 
 		get_weaponname(i, weaponName, charsmax(weaponName));
 
-		formatex(queryTemp, charsmax(queryTemp), "UPDATE `ultimate_stats_weapons` SET kills = %d, deaths = %d, hs_kills = %d, team_kills = %d, shots = %d, hits = %d, damage = %d, h_0 = %d, h_1 = %d, h_2 = %d, h_3 = %d, h_4 = %d, h_5 = %d, h_6 = %d, h_7 = %d WHERE weapon = '%s' AND player_id = %i; ", 
-		playerWStats[id][i][STATS_KILLS], playerWStats[id][i][STATS_DEATHS], playerWStats[id][i][STATS_HS], playerWStats[id][i][STATS_TK], playerWStats[id][i][STATS_SHOTS], playerWStats[id][i][STATS_HITS], playerWStats[id][i][STATS_DAMAGE], playerWStats[id][i][HIT_GENERIC], playerWStats[id][i][HIT_HEAD], 
+		formatex(queryTemp, charsmax(queryTemp), "UPDATE `ultimate_stats_weapons` SET kills = %d, deaths = %d, hs_kills = %d, team_kills = %d, shots = %d, hits = %d, damage = %d, h_1 = %d, h_2 = %d, h_3 = %d, h_4 = %d, h_5 = %d, h_6 = %d, h_7 = %d WHERE weapon = '%s' AND player_id = %i; ", 
+		playerWStats[id][i][STATS_KILLS], playerWStats[id][i][STATS_DEATHS], playerWStats[id][i][STATS_HS], playerWStats[id][i][STATS_TK], playerWStats[id][i][STATS_SHOTS], playerWStats[id][i][STATS_HITS], playerWStats[id][i][STATS_DAMAGE], playerWStats[id][i][HIT_HEAD], 
 		playerWStats[id][i][HIT_CHEST], playerWStats[id][i][HIT_STOMACH], playerWStats[id][i][HIT_LEFTARM], playerWStats[id][i][HIT_RIGHTARM], playerWStats[id][i][HIT_LEFTLEG], playerWStats[id][i][HIT_RIGHTLEG], weaponName, playerStats[id][PLAYER_ID]);
 
 		add(queryData, charsmax(queryData), queryTemp);
@@ -1563,6 +1559,8 @@ stock clear_stats(player = 0, reset = 0)
 	new limit = player ? player : MAX_PLAYERS;
 
 	for (new id = player; id <= limit; id++) {
+		if (player) playerStats[id][ELO_RANK] = _:100.0;
+
 		for (new i = HIT_GENERIC; i <= CURRENT_HS; i++) {
 			if (player) playerStats[id][i] = 0;
 			if (!reset) playerRStats[id][i] = 0;
