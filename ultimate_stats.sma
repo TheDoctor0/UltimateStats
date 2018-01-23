@@ -25,6 +25,9 @@
 #define set_bit(%2,%1) (%1 |= (1<<(%2&31)))
 #define rem_bit(%2,%1) (%1 &= ~(1 <<(%2&31)))
 
+#define is_user_valid(%1) (1 <= %1 <= MAX_PLAYERS)
+#define is_weapon_valid(%1) (0 < %1 < MAX_WEAPONS)
+
 #define get_elo(%1,%2) (1.0 / (1.0 + floatpower(10.0, ((%1 - %2) / 400.0))))
 #define set_elo(%1,%2,%3) (%1 + 20.0 * (%2 - %3))
 
@@ -38,8 +41,8 @@
 //#define set_elo(%1,%2,%3) (%1 + 20.0 * (%2 - %3))
 //
 //NATIVES:
-//get_stats(index,stats[8],bodyhits[8],name[],len); - overall stats for index from ranking  (https://www.amxmodx.org/api/tsstats/get_stats)
-//get_stats2(index, stats[4], authid[] = "", authidlen = 0); - overall stats for objectives for index from ranking (https://www.amxmodx.org/api/csstats/get_stats2)
+//TODO: get_stats(index,stats[8],bodyhits[8],name[],len); - overall stats for index from ranking  (https://www.amxmodx.org/api/tsstats/get_stats)
+//TODO: get_stats2(index, stats[4], authid[] = "", authidlen = 0); - overall stats for objectives for index from ranking (https://www.amxmodx.org/api/csstats/get_stats2)
 //get_user_stats(index,stats[8],bodyhits[8]); - overall player stats (https://www.amxmodx.org/api/tsstats/get_user_stats)
 //get_user_rstats(index,stats[8],bodyhits[8]); - round player stats (https://www.amxmodx.org/api/tsstats/get_user_rstats)
 //get_user_stats2(index, stats[4]); - overall player stats for objectives (https://www.amxmodx.org/api/csstats/get_user_stats2)
@@ -64,13 +67,15 @@ enum _:forwards { FORWARD_DAMAGE, FORWARD_DEATH, FORWARD_ASSIST, FORWARD_PLANTIN
 enum _:statsData { STATS_KILLS = HIT_END, STATS_DEATHS, STATS_HS, STATS_TK, STATS_SHOTS, STATS_HITS, STATS_DAMAGE, STATS_RANK };
 enum _:winers { THIRD, SECOND, FIRST };
 enum _:save { NORMAL = -1, ROUND, FINAL, MAP_END };
-enum _:playerData{ BOMB_DEFUSIONS = STATS_END, BOMB_DEFUSED, BOMB_PLANTED, BOMB_EXPLODED, RANK, ADMIN, PLAYER_ID, FIRST_VISIT, LAST_VISIT, TIME, CONNECTS, ASSISTS, ROUNDS, ROUNDS_CT, ROUNDS_T, WIN_CT, WIN_T, BRONZE, SILVER, 
-	GOLD, MEDALS, BEST_STATS, BEST_KILLS, BEST_DEATHS, BEST_HS, CURRENT_STATS, CURRENT_KILLS, CURRENT_DEATHS, CURRENT_HS, Float:ELO_RANK, NAME[32], SAFE_NAME[64], STEAMID[32], IP[16] };
+enum _:types { STATS, ROUND_STATS, WEAPON_STATS, WEAPON_ROUND_STATS, ATTACKER_STATS, VICTIM_STATS };
+enum _:playerData{ BOMB_DEFUSIONS = STATS_END, BOMB_DEFUSED, BOMB_PLANTED, BOMB_EXPLODED, RANK, ADMIN, PLAYER_ID, FIRST_VISIT, LAST_VISIT, TIME, CONNECTS, ASSISTS, ROUNDS, ROUNDS_CT, ROUNDS_T, WIN_CT, 
+	WIN_T, BRONZE, SILVER, GOLD, MEDALS, BEST_STATS, BEST_KILLS, BEST_DEATHS, BEST_HS, CURRENT_STATS, CURRENT_KILLS, CURRENT_DEATHS, CURRENT_HS, Float:ELO_RANK, NAME[32], SAFE_NAME[64], STEAMID[32], IP[16] };
 
 new playerStats[MAX_PLAYERS + 1][playerData], playerRStats[MAX_PLAYERS + 1][playerData], playerWStats[MAX_PLAYERS + 1][MAX_WEAPONS][STATS_END], playerWRStats[MAX_PLAYERS + 1][MAX_WEAPONS][STATS_END], 
 	playerAStats[MAX_PLAYERS + 1][MAX_PLAYERS + 1][STATS_END], playerVStats[MAX_PLAYERS + 1][MAX_PLAYERS + 1][STATS_END], weaponsAmmo[MAX_PLAYERS + 1][MAX_WEAPONS], statsForwards[forwards], statsNum,
 	Handle:sql, Handle:connection, bool:sqlConnection, bool:oneAndOnly, bool:block, bool:mapChange, round, sounds, statsLoaded, weaponStatsLoaded, visit, soundMayTheForce, soundOneAndOnly, soundPrepare, 
-	soundHumiliation, soundLastLeft, ret, cvarSaveType, rankSaveType, assistEnabled, assistMinDamage, assistMoney, medalsEnabled, prefixEnabled, chatInfoEnabled, xvsxEnabled, soundsEnabled, planter, defuser;
+	soundHumiliation, soundLastLeft, ret, cvarSaveType, rankSaveType, assistEnabled, assistMinDamage, assistMoney, assistInfoEnabled, leaderInfoEnabled, killerInfoEnabled, victimInfoEnabled, medalsEnabled, 
+	prefixEnabled, xvsxEnabled, soundsEnabled, planter, defuser;
 
 public plugin_init()
 {
@@ -83,24 +88,27 @@ public plugin_init()
 
 	cvarSaveType = get_cvar_pointer("csstats_rank");
 
-	bind_pcvar_num(create_cvar("ultimate_stats_assist_enabled", "0"), assistEnabled);
+	bind_pcvar_num(create_cvar("ultimate_stats_assist_enabled", "1"), assistEnabled);
 	bind_pcvar_num(create_cvar("ultimate_stats_assist_min_damage", "65"), assistMinDamage);
 	bind_pcvar_num(create_cvar("ultimate_stats_assist_money", "300"), assistMoney);
-	bind_pcvar_num(create_cvar("ultimate_stats_medals_enabled", "0"), medalsEnabled);
-	bind_pcvar_num(create_cvar("ultimate_stats_prefix_enabled", "0"), soundsEnabled);
-	bind_pcvar_num(create_cvar("ultimate_stats_chat_info_enabled", "0"), chatInfoEnabled);
-	bind_pcvar_num(create_cvar("ultimate_stats_xvsx_enabled", "0"), xvsxEnabled);
-	bind_pcvar_num(create_cvar("ultimate_stats_sounds_enabled", "0"), soundsEnabled);
+	bind_pcvar_num(create_cvar("ultimate_stats_assist_info_enabled", "1"), assistInfoEnabled);
+	bind_pcvar_num(create_cvar("ultimate_stats_leader_info_enabled", "1"), leaderInfoEnabled);
+	bind_pcvar_num(create_cvar("ultimate_stats_killer_info_enabled", "1"), killerInfoEnabled);
+	bind_pcvar_num(create_cvar("ultimate_stats_victim_info_enabled", "1"), victimInfoEnabled);
+	bind_pcvar_num(create_cvar("ultimate_stats_medals_enabled", "1"), medalsEnabled);
+	bind_pcvar_num(create_cvar("ultimate_stats_prefix_enabled", "1"), soundsEnabled);
+	bind_pcvar_num(create_cvar("ultimate_stats_xvsx_enabled", "1"), xvsxEnabled);
+	bind_pcvar_num(create_cvar("ultimate_stats_sounds_enabled", "1"), soundsEnabled);
 
-	// for(new i; i < sizeof(cmdMenu); i++) register_clcmd(cmdMenu[i], "cmd_menu");
-	// for(new i; i < sizeof(cmdTime); i++) register_clcmd(cmdTime[i], "cmd_time");
-	// for(new i; i < sizeof(cmdTimeAdmin); i++) register_clcmd(cmdTimeAdmin[i], "cmd_time_admin");
-	// for(new i; i < sizeof(cmdTimeTop); i++) register_clcmd(cmdTimeTop[i], "cmd_time_top");
-	// for(new i; i < sizeof(cmdStats); i++) register_clcmd(cmdStats[i], "cmd_stats");
-	// for(new i; i < sizeof(cmdStatsTop); i++) register_clcmd(cmdStatsTop[i], "cmd_stats_top");
-	// for(new i; i < sizeof(cmdMedals); i++) register_clcmd(cmdMedals[i], "cmd_medals");
-	// for(new i; i < sizeof(cmdMedalsTop); i++) register_clcmd(cmdMedalsTop[i], "cmd_medals_top");
-	// for(new i; i < sizeof(cmdSounds); i++) register_clcmd(cmdSounds[i], "cmd_sounds");
+	for(new i; i < sizeof(cmdMenu); i++) register_clcmd(cmdMenu[i], "cmd_menu");
+	for(new i; i < sizeof(cmdTime); i++) register_clcmd(cmdTime[i], "cmd_time");
+	for(new i; i < sizeof(cmdTimeAdmin); i++) register_clcmd(cmdTimeAdmin[i], "cmd_time_admin");
+	for(new i; i < sizeof(cmdTimeTop); i++) register_clcmd(cmdTimeTop[i], "cmd_time_top");
+	for(new i; i < sizeof(cmdStats); i++) register_clcmd(cmdStats[i], "cmd_stats");
+	for(new i; i < sizeof(cmdStatsTop); i++) register_clcmd(cmdStatsTop[i], "cmd_stats_top");
+	for(new i; i < sizeof(cmdMedals); i++) register_clcmd(cmdMedals[i], "cmd_medals");
+	for(new i; i < sizeof(cmdMedalsTop); i++) register_clcmd(cmdMedalsTop[i], "cmd_medals_top");
+	for(new i; i < sizeof(cmdSounds); i++) register_clcmd(cmdSounds[i], "cmd_sounds");
 	
 	statsForwards[FORWARD_DAMAGE] = CreateMultiForward("client_damage", ET_IGNORE, FP_CELL, FP_CELL, FP_CELL, FP_CELL, FP_CELL, FP_CELL);
 	statsForwards[FORWARD_DEATH] =  CreateMultiForward("client_death", ET_IGNORE, FP_CELL, FP_CELL, FP_CELL, FP_CELL, FP_CELL);
@@ -138,11 +146,19 @@ public plugin_init()
 
 public plugin_natives()
 {
-	// register_library("csstats");
+	register_library("csstats");
 
-	// register_native("get_statsnum", "native_get_statsnum", 1);
-
-	// register_native("reset_user_wstats", "native_reset_user_wstats", 1);
+	register_native("get_statsnum", "native_get_statsnum");
+	register_native("get_stats", "native_get_stats", 1);
+	register_native("get_stats2", "native_get_stats2", 1);
+	register_native("get_user_stats", "native_get_user_stats", 1);
+	register_native("get_user_stats2", "native_get_user_stats2", 1);
+	register_native("get_user_wstats", "native_get_user_wstats", 1);
+	register_native("get_user_rstats", "native_get_user_rstats", 1);
+	register_native("get_user_wrstats", "native_get_user_wrstats", 1);
+	register_native("get_user_vstats", "native_get_user_vstats", 1);
+	register_native("get_user_astats", "native_get_user_astats", 1);
+	register_native("reset_user_wstats", "native_reset_user_wstats", 1);
 }
 
 public plugin_cfg()
@@ -286,7 +302,7 @@ public new_round()
 
 	round++;
 
-	if (!chatInfoEnabled) return;
+	if (!leaderInfoEnabled) return;
 
 	new bestId, bestFrags, tempFrags, bestDeaths, tempDeaths;
 
@@ -416,6 +432,15 @@ public damage(victim)
 		playerVStats[attacker][0][STATS_HITS]++;
 		playerAStats[victim][0][STATS_HITS]++;
 
+		playerStats[attacker][HIT_GENERIC]++;
+		playerRStats[attacker][HIT_GENERIC]++;
+		playerWStats[attacker][weapon][HIT_GENERIC]++;
+		playerWRStats[attacker][weapon][HIT_GENERIC]++;
+		playerVStats[attacker][victim][HIT_GENERIC]++;
+		playerAStats[victim][attacker][HIT_GENERIC]++;
+		playerVStats[attacker][0][HIT_GENERIC]++;
+		playerAStats[victim][0][HIT_GENERIC]++;
+
 		if (hitPlace) {
 			playerStats[attacker][hitPlace]++;
 			playerRStats[attacker][hitPlace]++;
@@ -482,11 +507,9 @@ public death(killer, victim, weapon, hitPlace, teamKill)
 
 		save_stats(killer, NORMAL);
 
-		if (chatInfoEnabled) {
-			client_print_color(victim, killer, "* Zostales zabity przez^x03 %s^x01, ktoremu zostalo^x04 %i^x01 HP. *", playerStats[killer][NAME], get_user_health(killer));
-			client_print_color(killer, victim, "* Zabiles^x03 %s^x01. *", playerStats[victim][NAME]);
-		}
-
+		if (killerInfoEnabled) client_print_color(killer, victim, "* Zabiles^x03 %s^x01. *", playerStats[victim][NAME]);
+		if (victimInfoEnabled) client_print_color(victim, killer, "* Zostales zabity przez^x03 %s^x01, ktoremu zostalo^x04 %i^x01 HP. *", playerStats[killer][NAME], get_user_health(killer));
+		
 		if (assistEnabled) {
 			new assistKiller, assistDamage;
 
@@ -524,7 +547,7 @@ public death(killer, victim, weapon, hitPlace, teamKill)
 					message_end();
 				}
 				
-				client_print_color(assistKiller, killer, "^x03[ASYSTA]^x01 Pomogles^x04 %s^x01 w zabiciu^x04 %s^x01. Dostajesz fraga!", playerStats[killer][NAME], playerStats[victim][NAME]);
+				if (assistInfoEnabled) client_print_color(assistKiller, killer, "* Pomogles^x04 %s^x01 w zabiciu^x04 %s^x01. *", playerStats[killer][NAME], playerStats[victim][NAME]);
 			}
 		}
 	}
@@ -671,7 +694,7 @@ public message_intermission()
 
 		new const medals[][] = { "Brazowy", "Srebrny", "Zloty" };
 
-		client_print_color(0, 0, "^x04[STATS]^x01 Gratulacje dla^x03 Najlepszych Graczy^x01!");
+		client_print_color(0, 0, "* Gratulacje dla^x03 Najlepszych Graczy^x01! *");
 		
 		for (new i = 2; i >= 0; i--) {
 			switch(i) {
@@ -684,7 +707,7 @@ public message_intermission()
 			
 			get_user_name(winnersId[i], playerName, charsmax(playerName));
 
-			client_print_color(0, 0, "^x04[STATS]^x03 %s^x01 -^x03 %i^x01 Zabojstw - %s Medal.", playerName, winnersFrags[i], medals[i]);
+			client_print_color(0, 0, "* ^x03 %s^x01 -^x03 %i^x01 Zabojstw - %s Medal. *", playerName, winnersFrags[i], medals[i]);
 		}
 	}
 	
@@ -1394,8 +1417,8 @@ stock save_stats(id, end = 0)
 	playerStats[id][WIN_CT], playerStats[id][WIN_T], playerStats[id][CONNECTS], playerStats[id][TIME] + get_user_time(id), playerStats[id][BOMB_DEFUSIONS], playerStats[id][BOMB_DEFUSED], playerStats[id][BOMB_PLANTED], playerStats[id][BOMB_EXPLODED]); 
 	add(queryData, charsmax(queryData), queryTemp);
 	
-	formatex(queryTemp, charsmax(queryTemp), "elo_rank = %.2f, h_1 = %d, h_2 = %d, h_3 = %d, h_4 = %d, h_5 = %d, h_6 = %d, h_7 = %d, last_visit = UNIX_TIMESTAMP()",
-	playerStats[id][ELO_RANK], playerStats[id][HIT_HEAD], playerStats[id][HIT_CHEST], playerStats[id][HIT_STOMACH], playerStats[id][HIT_RIGHTARM], playerStats[id][HIT_LEFTARM], playerStats[id][HIT_RIGHTLEG], playerStats[id][HIT_LEFTLEG]);
+	formatex(queryTemp, charsmax(queryTemp), "elo_rank = %.2f, h_0 = %d, h_1 = %d, h_2 = %d, h_3 = %d, h_4 = %d, h_5 = %d, h_6 = %d, h_7 = %d, last_visit = UNIX_TIMESTAMP()",
+	playerStats[id][ELO_RANK], playerStats[id][HIT_GENERIC], playerStats[id][HIT_HEAD], playerStats[id][HIT_CHEST], playerStats[id][HIT_STOMACH], playerStats[id][HIT_RIGHTARM], playerStats[id][HIT_LEFTARM], playerStats[id][HIT_RIGHTLEG], playerStats[id][HIT_LEFTLEG]);
 	add(queryData, charsmax(queryData), queryTemp);
 
 	playerStats[id][CURRENT_STATS] = playerStats[id][CURRENT_KILLS] * 2 + playerStats[id][CURRENT_HS] - playerStats[id][CURRENT_DEATHS] * 2;
@@ -1583,6 +1606,20 @@ stock clear_stats(player = 0, reset = 0)
 	}
 }
 
+stock copy_stats(id, dest[], length, stats = 0, type = 0, weapon = 0, player = 0)
+{
+	for (new i = 0; i < length; i++) {
+		switch (type) {
+			case STATS: dest[i] = playerStats[id][i + stats];
+			case ROUND_STATS: dest[i] = playerRStats[id][i + stats];
+			case WEAPON_STATS: dest[i] = playerWStats[id][weapon][i + stats];
+			case WEAPON_ROUND_STATS: dest[i] = playerWRStats[id][weapon][i + stats];
+			case ATTACKER_STATS: dest[i] = playerAStats[id][player][i + stats];
+			case VICTIM_STATS: dest[i] = playerVStats[id][player][i + stats];
+		}
+	}
+}
+
 stock get_loguser_index()
 {
 	new userLog[96], userName[32];
@@ -1607,14 +1644,234 @@ stock sql_safe_string(const source[], dest[], length)
 	replace_all(dest, length, "^"", "\^"");
 }
 
+public native_get_stats(plugin, params)
+{
+	if (params < 5) {
+		log_error(AMX_ERR_NATIVE, "Bad arguments num, expected 5, passed %d.", params);
+		
+		return 0;
+	} else if (params > 5 && params != 7) {
+		log_error(AMX_ERR_NATIVE, "Bad arguments num, expected 7, passed %d.", params);
+		
+		return 0;
+	}
+
+	new index = get_param(1);
+
+	static stats[8], hits[8];
+
+	copy_stats(id, hits, sizeof(hits), _, STATS);
+	copy_stats(id, stats, sizeof(stats), HIT_END, STATS);
+
+	set_array(2, stats, sizeof(stats));
+	set_array(3, hits, sizeof(stats));
+
+	return 1;
+}
+
+public native_get_user_stats(plugin, params)
+{
+	if (params < 3) {
+		log_error(AMX_ERR_NATIVE, "Bad arguments num, expected 3, passed %d.", params);
+		
+		return 0;
+	}
+
+	new id = get_param(1);
+
+	if (!is_user_valid(id)) {
+		log_error(AMX_ERR_NATIVE, "Invalid player - %i.", id);
+		
+		return 0;
+	}
+
+	static stats[8], hits[8];
+
+	copy_stats(id, hits, sizeof(hits), _, STATS);
+	copy_stats(id, stats, sizeof(stats), HIT_END, STATS);
+
+	set_array(2, stats, sizeof(stats));
+	set_array(3, hits, sizeof(stats));
+
+	return 1;
+}
+
+public native_get_user_stats2(plugin, params)
+{
+	if (params < 2) {
+		log_error(AMX_ERR_NATIVE, "Bad arguments num, expected 2, passed %d.", params);
+		
+		return 0;
+	} 
+
+	new id = get_param(1);
+
+	if (!is_user_valid(id)) {
+		log_error(AMX_ERR_NATIVE, "Invalid player - %i.", id);
+		
+		return 0;
+	}
+
+	static objectives[4];
+
+	copy_stats(id, objectives, sizeof(objectives), STATS_END, STATS);
+
+	set_array(2, objectives, sizeof(objectives));
+
+	return 1;
+}
+
+public native_get_user_wstats(plugin, params)
+{
+	if (params < 4) {
+		log_error(AMX_ERR_NATIVE, "Bad arguments num, expected 4, passed %d.", params);
+		
+		return 0;
+	} 
+
+	new id = get_param(1), weapon = get_param(2);
+
+	if (!is_user_valid(id)) {
+		log_error(AMX_ERR_NATIVE, "Invalid player - %i.", id);
+		
+		return 0;
+	} else if (!is_weapon_valid(id)) {
+		log_error(AMX_ERR_NATIVE, "Invalid weapon - %i.", weapon);
+		
+		return 0;
+	}
+
+	static stats[8], hits[8];
+
+	copy_stats(id, hits, sizeof(hits), _, WEAPON_STATS, weapon);
+	copy_stats(id, stats, charsmax(stats), HIT_END, WEAPON_STATS, weapon);
+
+	set_array(3, stats, sizeof(stats));
+	set_array(4, hits, sizeof(stats));
+
+	return 1;
+}
+
+public native_get_user_rstats(plugin, params)
+{
+	if (params < 3) {
+		log_error(AMX_ERR_NATIVE, "Bad arguments num, expected 3, passed %d.", params);
+		
+		return 0;
+	}
+
+	new id = get_param(1);
+
+	if (!is_user_valid(id)) {
+		log_error(AMX_ERR_NATIVE, "Invalid player - %i.", id);
+		
+		return 0;
+	}
+
+	static stats[8], hits[8];
+
+	copy_stats(id, hits, sizeof(hits), _, ROUND_STATS);
+	copy_stats(id, stats, charsmax(stats), HIT_END, ROUND_STATS);
+
+	set_array(2, stats, sizeof(stats));
+	set_array(3, hits, sizeof(stats));
+
+	return 1;
+}
+
+public native_get_user_wrstats(plugin, params)
+{
+	if (params < 4) {
+		log_error(AMX_ERR_NATIVE, "Bad arguments num, expected 4, passed %d.", params);
+		
+		return 0;
+	}
+
+	new id = get_param(1), weapon = get_param(2);
+
+	if (!is_user_valid(id)) {
+		log_error(AMX_ERR_NATIVE, "Invalid player - %i.", id);
+		
+		return 0;
+	} else if (!is_weapon_valid(id)) {
+		log_error(AMX_ERR_NATIVE, "Invalid weapon - %i.", weapon);
+		
+		return 0;
+	}
+
+	static stats[8], hits[8];
+
+	copy_stats(id, hits, sizeof(hits), _, WEAPON_ROUND_STATS, weapon);
+	copy_stats(id, stats, charsmax(stats), HIT_END, WEAPON_ROUND_STATS, weapon);
+
+	set_array(3, stats, sizeof(stats));
+	set_array(4, hits, sizeof(stats));
+
+	return 1;
+}
+
+public native_get_user_astats(plugin, params)
+{
+	if (params < 4) {
+		log_error(AMX_ERR_NATIVE, "Bad arguments num, expected 4, passed %d.", params);
+		
+		return 0;
+	}
+
+	new id = get_param(1), player = get_param(2);
+
+	if (!is_user_valid(id) || (!is_user_valid(player) && player != 0)) {
+		log_error(AMX_ERR_NATIVE, "Invalid player - %i.", is_user_valid(id) ? player : id);
+		
+		return 0;
+	}
+
+	static stats[8], hits[8];
+
+	copy_stats(id, hits, sizeof(hits), _, ATTACKER_STATS, _, player);
+	copy_stats(id, stats, charsmax(stats), HIT_END, ATTACKER_STATS, _, player);
+
+	set_array(3, stats, sizeof(stats));
+	set_array(4, hits, sizeof(stats));
+
+	return hits[HIT_GENERIC];
+}
+
+public native_get_user_vstats(plugin, params)
+{
+	if (params < 4) {
+		log_error(AMX_ERR_NATIVE, "Bad arguments num, expected 4, passed %d.", params);
+		
+		return 0;
+	}
+
+	new id = get_param(1), player = get_param(2);
+
+	if (!is_user_valid(id) || (!is_user_valid(player) && player != 0)) {
+		log_error(AMX_ERR_NATIVE, "Invalid player - %i.", is_user_valid(id) ? player : id);
+		
+		return 0;
+	}
+
+	static stats[8], hits[8];
+
+	copy_stats(id, hits, sizeof(hits), _, VICTIM_STATS, _, player);
+	copy_stats(id, stats, charsmax(stats), HIT_END, VICTIM_STATS, _, player);
+
+	set_array(3, stats, sizeof(stats));
+	set_array(4, hits, sizeof(stats));
+
+	return hits[HIT_GENERIC];
+}
+
 public native_get_statsnum()
 	return statsNum;
 
 public native_reset_user_wstats(id)
 {
-	if (!is_user_connected(id)) return false;
+	if (!is_user_connected(id)) return 0;
 
 	clear_stats(id, 1);
 
-	return true;
+	return 1;
 }
