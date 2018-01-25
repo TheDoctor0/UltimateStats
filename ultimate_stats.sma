@@ -40,6 +40,8 @@
 //#define get_elo(%1,%2) (1.0 / (1.0 + floatpower(10.0, ((%1 - %2) / 400.0))))
 //#define set_elo(%1,%2,%3) (%1 + 20.0 * (%2 - %3))
 //
+//TODO: INSERT INTO () VALUES () ON DUPLICATE KEY UPDATE
+//
 //NATIVES:
 //TODO: get_stats(index,stats[8],bodyhits[8],name[],len); - overall stats for index from ranking  (https://www.amxmodx.org/api/tsstats/get_stats)
 //TODO: get_stats2(index, stats[4], authid[] = "", authidlen = 0); - overall stats for objectives for index from ranking (https://www.amxmodx.org/api/csstats/get_stats2)
@@ -68,7 +70,7 @@ enum _:statsData { STATS_KILLS = HIT_END, STATS_DEATHS, STATS_HS, STATS_TK, STAT
 enum _:winers { THIRD, SECOND, FIRST };
 enum _:save { NORMAL = -1, ROUND, FINAL, MAP_END };
 enum _:types { STATS, ROUND_STATS, WEAPON_STATS, WEAPON_ROUND_STATS, ATTACKER_STATS, VICTIM_STATS };
-enum _:playerData{ BOMB_DEFUSIONS = STATS_END, BOMB_DEFUSED, BOMB_PLANTED, BOMB_EXPLODED, RANK, ADMIN, PLAYER_ID, FIRST_VISIT, LAST_VISIT, TIME, CONNECTS, ASSISTS, ROUNDS, ROUNDS_CT, ROUNDS_T, WIN_CT, 
+enum _:playerData{ BOMB_DEFUSIONS = STATS_END, BOMB_DEFUSED, BOMB_PLANTED, BOMB_EXPLODED, ADMIN, PLAYER_ID, FIRST_VISIT, LAST_VISIT, TIME, CONNECTS, ASSISTS, ROUNDS, ROUNDS_CT, ROUNDS_T, WIN_CT, 
 	WIN_T, BRONZE, SILVER, GOLD, MEDALS, BEST_STATS, BEST_KILLS, BEST_DEATHS, BEST_HS, CURRENT_STATS, CURRENT_KILLS, CURRENT_DEATHS, CURRENT_HS, Float:ELO_RANK, NAME[32], SAFE_NAME[64], STEAMID[32], IP[16] };
 
 new playerStats[MAX_PLAYERS + 1][playerData], playerRStats[MAX_PLAYERS + 1][playerData], playerWStats[MAX_PLAYERS + 1][MAX_WEAPONS][STATS_END], playerWRStats[MAX_PLAYERS + 1][MAX_WEAPONS][STATS_END], 
@@ -149,16 +151,16 @@ public plugin_natives()
 	register_library("csstats");
 
 	register_native("get_statsnum", "native_get_statsnum");
-	register_native("get_stats", "native_get_stats", 1);
-	register_native("get_stats2", "native_get_stats2", 1);
-	register_native("get_user_stats", "native_get_user_stats", 1);
-	register_native("get_user_stats2", "native_get_user_stats2", 1);
-	register_native("get_user_wstats", "native_get_user_wstats", 1);
-	register_native("get_user_rstats", "native_get_user_rstats", 1);
-	register_native("get_user_wrstats", "native_get_user_wrstats", 1);
-	register_native("get_user_vstats", "native_get_user_vstats", 1);
-	register_native("get_user_astats", "native_get_user_astats", 1);
-	register_native("reset_user_wstats", "native_reset_user_wstats", 1);
+	register_native("get_stats", "native_get_stats");
+	register_native("get_stats2", "native_get_stats2");
+	register_native("get_user_stats", "native_get_user_stats");
+	register_native("get_user_stats2", "native_get_user_stats2");
+	register_native("get_user_wstats", "native_get_user_wstats");
+	register_native("get_user_rstats", "native_get_user_rstats");
+	register_native("get_user_wrstats", "native_get_user_wrstats");
+	register_native("get_user_vstats", "native_get_user_vstats");
+	register_native("get_user_astats", "native_get_user_astats");
+	register_native("reset_user_wstats", "native_reset_user_wstats");
 }
 
 public plugin_cfg()
@@ -731,9 +733,9 @@ public say_text(msgId, msgDest, msgEnt)
 		
 		get_msg_arg_string(2, tempMessage, charsmax(tempMessage));
 
-		if (playerStats[id][RANK] > 3) return PLUGIN_CONTINUE;
+		if (playerStats[id][STATS_RANK] > 3) return PLUGIN_CONTINUE;
 			
-		switch (playerStats[id][RANK]) {
+		switch (playerStats[id][STATS_RANK]) {
 			case 1: formatex(chatPrefix, charsmax(chatPrefix), "^x04[TOP1]");
 			case 2: formatex(chatPrefix, charsmax(chatPrefix), "^x04[TOP2]");
 			case 3: formatex(chatPrefix, charsmax(chatPrefix), "^x04[TOP3]");
@@ -1177,8 +1179,8 @@ public sql_init()
 	add(queryData,  charsmax(queryData), "`damage` INT NOT NULL DEFAULT 0, `rounds` INT NOT NULL DEFAULT 0, `rounds_ct` INT NOT NULL DEFAULT 0, `rounds_t` INT NOT NULL DEFAULT 0, `wins_ct` INT NOT NULL DEFAULT 0, `wins_t` INT NOT NULL DEFAULT 0, "); 
 	add(queryData,  charsmax(queryData), "`connects` INT NOT NULL DEFAULT 0, `time` INT NOT NULL DEFAULT 0, `gold` INT NOT NULL DEFAULT 0, `silver` INT NOT NULL DEFAULT 0, `bronze` INT NOT NULL DEFAULT 0, `medals` INT NOT NULL DEFAULT 0, "); 
 	add(queryData,  charsmax(queryData), "`best_kills` INT NOT NULL DEFAULT 0, `best_deaths` INT NOT NULL DEFAULT 0, `best_hs` INT NOT NULL DEFAULT 0, `best_stats` INT NOT NULL DEFAULT 0, `defusions` INT NOT NULL DEFAULT 0, `defused` INT NOT NULL DEFAULT 0, ");
-	add(queryData,  charsmax(queryData), "`planted` INT NOT NULL DEFAULT 0, `exploded` INT NOT NULL DEFAULT 0, `elo_rank` DOUBLE NOT NULL DEFAULT 100, `h_1` INT NOT NULL DEFAULT 0, `h_2` INT NOT NULL DEFAULT 0, `h_3` INT NOT NULL DEFAULT 0, `h_4` INT NOT NULL DEFAULT 0, "); 
-	add(queryData,  charsmax(queryData), "`h_5` INT NOT NULL DEFAULT 0, `h_6` INT NOT NULL DEFAULT 0, `h_7` INT NOT NULL DEFAULT 0, `first_visit` BIGINT NOT NULL DEFAULT 0, `last_visit` BIGINT NOT NULL DEFAULT 0,  PRIMARY KEY(`id`), UNIQUE KEY `name` (`name`));");
+	add(queryData,  charsmax(queryData), "`planted` INT NOT NULL DEFAULT 0, `exploded` INT NOT NULL DEFAULT 0, `elo_rank` DOUBLE NOT NULL DEFAULT 100, `h_0` INT NOT NULL DEFAULT 0, `h_1` INT NOT NULL DEFAULT 0, `h_2` INT NOT NULL DEFAULT 0, `h_3` INT NOT NULL DEFAULT 0, "); 
+	add(queryData,  charsmax(queryData), "`h_4` INT NOT NULL DEFAULT 0, `h_5` INT NOT NULL DEFAULT 0, `h_6` INT NOT NULL DEFAULT 0, `h_7` INT NOT NULL DEFAULT 0, `first_visit` BIGINT NOT NULL DEFAULT 0, `last_visit` BIGINT NOT NULL DEFAULT 0,  PRIMARY KEY(`id`), UNIQUE KEY `name` (`name`));");
 
 	new Handle:query = SQL_PrepareQuery(connection, queryData);
 
@@ -1256,6 +1258,7 @@ public load_stats_handle(failState, Handle:query, error[], errorNum, playerId[],
 		playerStats[id][STATS_HITS] = SQL_ReadResult(query, SQL_FieldNameToNum(query, "hits"));
 		playerStats[id][STATS_DAMAGE] = SQL_ReadResult(query, SQL_FieldNameToNum(query, "damage"));
 		playerStats[id][STATS_RANK] = SQL_ReadResult(query, SQL_FieldNameToNum(query, "rank"));
+		playerStats[id][HIT_GENERIC] = SQL_ReadResult(query, SQL_FieldNameToNum(query, "h_0"));
 		playerStats[id][HIT_HEAD] = SQL_ReadResult(query, SQL_FieldNameToNum(query, "h_1"));
 		playerStats[id][HIT_CHEST] = SQL_ReadResult(query, SQL_FieldNameToNum(query, "h_2"));
 		playerStats[id][HIT_STOMACH] = SQL_ReadResult(query, SQL_FieldNameToNum(query, "h_3"));
@@ -1367,6 +1370,7 @@ public load_weapons_stats_handle(failState, Handle:query, error[], errorNum, pla
 		playerWStats[id][weapon][STATS_HITS] = SQL_ReadResult(query, SQL_FieldNameToNum(query, "hits"));
 		playerWStats[id][weapon][STATS_DAMAGE] = SQL_ReadResult(query, SQL_FieldNameToNum(query, "damage"));
 		playerWStats[id][weapon][STATS_RANK] = SQL_ReadResult(query, SQL_FieldNameToNum(query, "rank"));
+		playerWStats[id][weapon][HIT_GENERIC] = SQL_ReadResult(query, SQL_FieldNameToNum(query, "h_0"));
 		playerWStats[id][weapon][HIT_HEAD] = SQL_ReadResult(query, SQL_FieldNameToNum(query, "h_1"));
 		playerWStats[id][weapon][HIT_CHEST] = SQL_ReadResult(query, SQL_FieldNameToNum(query, "h_2"));
 		playerWStats[id][weapon][HIT_STOMACH] = SQL_ReadResult(query, SQL_FieldNameToNum(query, "h_3"));
@@ -1487,7 +1491,7 @@ stock save_weapons_stats(id, end = 0)
 {
 	if (!get_bit(id, weaponStatsLoaded)) return;
 
-	static queryData[2048], queryTemp[512], weaponName[32];
+	static queryData[4096], queryTemp[512], weaponName[32];
 	queryData = "";
 
 	for (new i = 1; i < MAX_WEAPONS; i++) {
@@ -1495,9 +1499,10 @@ stock save_weapons_stats(id, end = 0)
 
 		get_weaponname(i, weaponName, charsmax(weaponName));
 
-		formatex(queryTemp, charsmax(queryTemp), "UPDATE `ultimate_stats_weapons` SET kills = %d, deaths = %d, hs_kills = %d, team_kills = %d, shots = %d, hits = %d, damage = %d, h_1 = %d, h_2 = %d, h_3 = %d, h_4 = %d, h_5 = %d, h_6 = %d, h_7 = %d WHERE weapon = '%s' AND player_id = %i; ", 
-		playerWStats[id][i][STATS_KILLS], playerWStats[id][i][STATS_DEATHS], playerWStats[id][i][STATS_HS], playerWStats[id][i][STATS_TK], playerWStats[id][i][STATS_SHOTS], playerWStats[id][i][STATS_HITS], playerWStats[id][i][STATS_DAMAGE], playerWStats[id][i][HIT_HEAD], 
-		playerWStats[id][i][HIT_CHEST], playerWStats[id][i][HIT_STOMACH], playerWStats[id][i][HIT_LEFTARM], playerWStats[id][i][HIT_RIGHTARM], playerWStats[id][i][HIT_LEFTLEG], playerWStats[id][i][HIT_RIGHTLEG], weaponName, playerStats[id][PLAYER_ID]);
+		formatex(queryTemp, charsmax(queryTemp), "INSERT INTO `ultimate_stats_weapons` VALUES (%d, '%s', %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d) ON DUPLICATE KEY UPDATE kills = %d, deaths = %d, hs_kills = %d, team_kills = %d, shots = %d, hits = %d, damage = %d, h_0 = %d, h_1 = %d, h_2 = %d, h_3 = %d, h_4 = %d, h_5 = %d, h_6 = %d, h_7 = %d; ", 
+		playerStats[id][PLAYER_ID], weaponName, playerWStats[id][i][STATS_KILLS], playerWStats[id][i][STATS_DEATHS], playerWStats[id][i][STATS_HS], playerWStats[id][i][STATS_TK], playerWStats[id][i][STATS_SHOTS], playerWStats[id][i][STATS_HITS], playerWStats[id][i][STATS_DAMAGE], playerWStats[id][i][HIT_GENERIC], playerWStats[id][i][HIT_HEAD], playerWStats[id][i][HIT_CHEST], 
+		playerWStats[id][i][HIT_STOMACH], playerWStats[id][i][HIT_LEFTARM], playerWStats[id][i][HIT_RIGHTARM], playerWStats[id][i][HIT_LEFTLEG], playerWStats[id][i][HIT_RIGHTLEG], playerWStats[id][i][STATS_KILLS], playerWStats[id][i][STATS_DEATHS], playerWStats[id][i][STATS_HS], playerWStats[id][i][STATS_TK], playerWStats[id][i][STATS_SHOTS], playerWStats[id][i][STATS_HITS], 
+		playerWStats[id][i][STATS_DAMAGE], playerWStats[id][i][HIT_GENERIC], playerWStats[id][i][HIT_HEAD], playerWStats[id][i][HIT_CHEST], playerWStats[id][i][HIT_STOMACH], playerWStats[id][i][HIT_LEFTARM], playerWStats[id][i][HIT_RIGHTARM], playerWStats[id][i][HIT_LEFTLEG], playerWStats[id][i][HIT_RIGHTLEG]);
 
 		add(queryData, charsmax(queryData), queryTemp);
 	}
@@ -1658,13 +1663,75 @@ public native_get_stats(plugin, params)
 
 	new index = get_param(1);
 
-	static stats[8], hits[8];
+	static queryData[256], error[128], name[32], steamId[32], stats[8], hits[8], Handle:query, errorNum;
+	
+	formatex(queryData, charsmax(queryData), "SELECT kills, deaths, hs_kills, team_kills, shots, hits, damage, assists, h_0, h_1, h_2, h_3, h_4, h_5, h_6, h_7, name, steamid FROM `ultimate_stats` ORDER BY (kills - deaths) >= (a.kills - a.deaths)) DESC LIMIT %d, %d", index, index);
+	
+	query = SQL_PrepareQuery(connection, queryData);
+	
+	if (SQL_Execute(query)) {
+		if (SQL_NumResults(query)) {
+			for (new i = 0; i < 8; i++) stats[i] = SQL_ReadResult(query, i);
+			for (new i = 0; i < 8; i++) hits[i] = SQL_ReadResult(query, i + 8);
 
-	copy_stats(id, hits, sizeof(hits), _, STATS);
-	copy_stats(id, stats, sizeof(stats), HIT_END, STATS);
+			SQL_ReadResult(query, SQL_FieldNameToNum(query, "name"), name, charsmax(name));
+			SQL_ReadResult(query, SQL_FieldNameToNum(query, "steamid"), steamId, charsmax(steamId));
+		}
+	} else {
+		errorNum = SQL_QueryError(query, error, charsmax(error));
+			
+		log_to_file("ultimate_stats.log", "SQL Query Error. [%d] %s", errorNum, error);
+	}
+
+	SQL_FreeHandle(query);
 
 	set_array(2, stats, sizeof(stats));
 	set_array(3, hits, sizeof(stats));
+
+	set_string(4, name, charsmax(name));
+
+	if (params == 5) set_string(4, steamId, charsmax(steamId));
+
+	return 1;
+}
+
+public native_get_stats2(plugin, params)
+{
+	if (params < 5) {
+		log_error(AMX_ERR_NATIVE, "Bad arguments num, expected 5, passed %d.", params);
+		
+		return 0;
+	} else if (params > 5 && params != 7) {
+		log_error(AMX_ERR_NATIVE, "Bad arguments num, expected 7, passed %d.", params);
+		
+		return 0;
+	}
+
+	new index = get_param(1);
+
+	static queryData[192], error[128], steamId[32], objectives[4], Handle:query, errorNum;
+	
+	formatex(queryData, charsmax(queryData), "SELECT defusions, defused, planted, exploded, steamid FROM `ultimate_stats` ORDER BY (kills - deaths) >= (a.kills - a.deaths)) DESC LIMIT %d, %d", index, index);
+	
+	query = SQL_PrepareQuery(connection, queryData);
+	
+	if (SQL_Execute(query)) {
+		if (SQL_NumResults(query)) {
+			for (new i = 0; i < 4; i++) objectives[i] = SQL_ReadResult(query, i);
+
+			SQL_ReadResult(query, SQL_FieldNameToNum(query, "steamid"), steamId, charsmax(steamId));
+		}
+	} else {
+		errorNum = SQL_QueryError(query, error, charsmax(error));
+			
+		log_to_file("ultimate_stats.log", "SQL Query Error. [%d] %s", errorNum, error);
+	}
+
+	SQL_FreeHandle(query);
+
+	set_array(2, objectives, sizeof(objectives));
+
+	if (params == 3) set_string(3, steamId, charsmax(steamId));
 
 	return 1;
 }
@@ -1867,9 +1934,21 @@ public native_get_user_vstats(plugin, params)
 public native_get_statsnum()
 	return statsNum;
 
-public native_reset_user_wstats(id)
+public native_reset_user_wstats(plugin, params)
 {
-	if (!is_user_connected(id)) return 0;
+	if (params != 1) {
+		log_error(AMX_ERR_NATIVE, "Bad arguments num, expected 1, passed %d.", params);
+		
+		return 0;
+	}
+
+	new id = get_param(1);
+
+	if (!is_user_valid(id) || !is_user_connected(id)) {
+		log_error(AMX_ERR_NATIVE, "Invalid player - %i.", id);
+		
+		return 0;
+	}
 
 	clear_stats(id, 1);
 
