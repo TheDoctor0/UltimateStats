@@ -65,7 +65,7 @@
 //reset_user_wstats(index); (https://www.amxmodx.org/api/tsstats/reset_user_wstats) - reset wrstats, vstats, astats
 new const body[][] = { "cialo", "glowa", "klatka piersiowa", "brzuch", "lewe ramie", "prawe ramie", "lewa noga", "prawa noga" };
 
-new const cmdMenu[][] = { "menustaty", "say /statsmenu", "say_team /statsmenu", "say /statymenu", "say_team /statymenu", "say /menustaty", "say_team /menustaty" };
+//new const cmdMenu[][] = { "menustaty", "say /statsmenu", "say_team /statsmenu", "say /statymenu", "say_team /statymenu", "say /menustaty", "say_team /menustaty" };
 new const cmdHP[][] = { "hp", "say /hp", "say_team /hp" };
 new const cmdMe[][] = { "me", "say /me", "say_team /me" };
 // new const cmdStats[][] = { "stats", "say /stats", "say_team /stats" };
@@ -190,9 +190,9 @@ public plugin_natives()
 {
 	register_library("csstats");
 
-	register_native("statsnum", "native_statsnum");
-	register_native("stats", "native_stats");
-	register_native("stats2", "native_stats2");
+	register_native("get_statsnum", "native_get_statsnum");
+	register_native("get_stats", "native_get_stats");
+	register_native("get_stats2", "native_get_stats2");
 	register_native("get_user_stats", "native_get_user_stats");
 	register_native("get_user_stats2", "native_get_user_stats2");
 	register_native("get_user_wstats", "native_get_user_wstats");
@@ -2119,7 +2119,10 @@ stock sql_safe_string(const source[], dest[], length)
 	replace_all(dest, length, "^"", "\^"");
 }
 
-public native_stats(plugin, params)
+public native_get_statsnum()
+	return statsNum;
+
+public native_get_stats(plugin, params)
 {
 	if (params < 5) {
 		log_error(AMX_ERR_NATIVE, "Bad arguments num, expected 5, passed %d.", params);
@@ -2167,7 +2170,7 @@ public native_stats(plugin, params)
 	return 1;
 }
 
-public native_stats2(plugin, params)
+public native_get_stats2(plugin, params)
 {
 	if (params < 5) {
 		log_error(AMX_ERR_NATIVE, "Bad arguments num, expected 5, passed %d.", params);
@@ -2464,9 +2467,6 @@ public native_get_user_total_time(plugin, params)
 
 	return playerStats[id][TIME] + get_user_time(id);
 }
-
-public native_statsnum()
-	return statsNum;
 
 public native_reset_user_wstats(plugin, params)
 {
