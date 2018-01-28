@@ -1,7 +1,6 @@
 #include <amxmodx>
 #include <fakemeta>
 #include <hamsandwich>
-#include <unixtime>
 #include <cstrike>
 #include <nvault>
 #include <sqlx>
@@ -11,85 +10,109 @@
 #define VERSION "1.0"
 #define AUTHOR  "O'Zone"
 
-#pragma dynamic 	32768
+#pragma dynamic 	        32768
 
-#define CSW_SHIELD  2
-#define MAX_WEAPONS CSW_P90 + 1
-#define HIT_END     HIT_RIGHTLEG + 1
-#define STATS_END   STATS_RANK + 1
-#define MAX_MONEY   16000
+#define CSW_SHIELD          2
 
-#define TASK_TIME   6701
+#define MAX_WEAPONS         CSW_P90 + 1
+#define HIT_END             HIT_RIGHTLEG + 1
+#define STATS_END           STATS_RANK + 1
+#define ALL_END             KILLER_DISTANCE + 1
 
-#define get_bit(%2,%1) (%1 & (1<<(%2&31)))
-#define set_bit(%2,%1) (%1 |= (1<<(%2&31)))
-#define rem_bit(%2,%1) (%1 &= ~(1 <<(%2&31)))
+#define MAX_MONEY           16000
 
-#define is_user_valid(%1) (1 <= %1 <= MAX_PLAYERS)
+#define TASK_TIME           6701
+
+#define get_bit(%2,%1)      (%1 & (1<<(%2&31)))
+#define set_bit(%2,%1)      (%1 |= (1<<(%2&31)))
+#define rem_bit(%2,%1)      (%1 &= ~(1 <<(%2&31)))
+
+#define is_user_valid(%1)   (1 <= %1 <= MAX_PLAYERS)
 #define is_weapon_valid(%1) (0 < %1 < MAX_WEAPONS)
 
-#define get_elo(%1,%2) (1.0 / (1.0 + floatpower(10.0, ((%1 - %2) / 400.0))))
-#define set_elo(%1,%2,%3) (%1 + 20.0 * (%2 - %3))
+#define get_elo(%1,%2)      (1.0 / (1.0 + floatpower(10.0, ((%1 - %2) / 400.0))))
+#define set_elo(%1,%2,%3)   (%1 + 20.0 * (%2 - %3))
 
+#define stat(%1)        (%1 - HIT_END - 2)      
+
+//COMMANDS:
+//say /hp ++
+//say /statsme +
+//say /rankstats ++
+//say /me ++
+//say /rank ++
+//say /topme ++
+//say /top15 (+ weapons) ++
+//OPTIONAL COMMANDS:
+//say /stats +
+//say /report +
+//say /score +
 //FEATURES:
-//All from StatsX
-//All from CsStats
-//All from StatsSystem
-//Rankings and top15 for all features + weapons
-//Skill - elo rank
-//#define get_elo(%1,%2) (1.0 / (1.0 + floatpower(10.0, ((%1 - %2) / 400.0))))
-//#define set_elo(%1,%2,%3) (%1 + 20.0 * (%2 - %3))
-//
-//TODO: INSERT INTO () VALUES () ON DUPLICATE KEY UPDATE
-//
+//eventShowRank (rank on spect)
+//show_user_hudstats (attackers, victims, kills)
+//show_roundend_hudstats (most kills/most disrruptive)
 //NATIVES:
-//TODO: get_stats(index,stats[8],bodyhits[8],name[],len); - overall stats for index from ranking  (https://www.amxmodx.org/api/tsstats/get_stats)
-//TODO: get_stats2(index, stats[4], authid[] = "", authidlen = 0); - overall stats for objectives for index from ranking (https://www.amxmodx.org/api/csstats/get_stats2)
+//stats(index,stats[8],bodyhits[8],name[],len); - overall stats for index from ranking  (https://www.amxmodx.org/api/tsstats/stats)
+//stats2(index, stats[4], authid[] = "", authidlen = 0); - overall stats for objectives for index from ranking (https://www.amxmodx.org/api/csstats/stats2)
 //get_user_stats(index,stats[8],bodyhits[8]); - overall player stats (https://www.amxmodx.org/api/tsstats/get_user_stats)
 //get_user_rstats(index,stats[8],bodyhits[8]); - round player stats (https://www.amxmodx.org/api/tsstats/get_user_rstats)
 //get_user_stats2(index, stats[4]); - overall player stats for objectives (https://www.amxmodx.org/api/csstats/get_user_stats2)
-//get_statsnum(); - numbers of players in ranking (https://www.amxmodx.org/api/tsstats/get_statsnum)
+//statsnum(); - numbers of players in ranking (https://www.amxmodx.org/api/tsstats/statsnum)
 //get_user_wstats(index,wpnindex,stats[8],bodyhits[8]); - overall player stats for given weapon (https://www.amxmodx.org/api/tsstats/get_user_wstats)
 //get_user_wrstats(index,wpnindex,stats[8],bodyhits[8]); - round player stats for given weapon (https://www.amxmodx.org/api/tsstats/get_user_wrstats)
 //get_user_vstats(index,victim,stats[8],bodyhits[8],wpnname[]="",len=0); - round victim stats (https://www.amxmodx.org/api/tsstats/get_user_vstats)
 //get_user_astats(index,wpnindex,stats[8],bodyhits[8],wpnname[]="",len=0); - round attacker stats (https://www.amxmodx.org/api/tsstats/get_user_astats)
 //reset_user_wstats(index); (https://www.amxmodx.org/api/tsstats/reset_user_wstats) - reset wrstats, vstats, astats
+new const body[][] = { "cialo", "glowa", "klatka piersiowa", "brzuch", "lewe ramie", "prawe ramie", "lewa noga", "prawa noga" };
 
 new const cmdMenu[][] = { "menustaty", "say /statsmenu", "say_team /statsmenu", "say /statymenu", "say_team /statymenu", "say /menustaty", "say_team /menustaty" };
+new const cmdHP[][] = { "hp", "say /hp", "say_team /hp" };
+new const cmdMe[][] = { "me", "say /me", "say_team /me" };
+// new const cmdStats[][] = { "stats", "say /stats", "say_team /stats" };
+new const cmdStatsMe[][] = { "statsme", "say /statsme", "say_team /statsme" };
+new const cmdRank[][] = { "rank", "say /rank", "say_team /rank" };
+new const cmdRankStats[][] = { "rankstats", "say /rankstats", "say_team /rankstats" };
+new const cmdTop15[][] = { "top15", "say /top15", "say_team /top15" };
+new const cmdTopMe[][] = { "topme", "say /topme", "say_team /topme" };
+// new const cmdScore[][] = { "score", "say /score", "say_team /score" };
+// new const cmdReport[][] = { "report", "say /report", "say_team /report" };
 new const cmdTime[][] = { "czas", "say /time", "say_team /time", "say /czas", "say_team /czas" };
 new const cmdTimeAdmin[][] = { "czasadmin", "say /timeadmin", "say_team /timeadmin", "say /tadmin", "say_team /tadmin", "say /czasadmin", "say_team /czasadmin", "say /cadmin", "say_team /cadmin", "say /adminczas", "say_team /adminczas" };
 new const cmdTimeTop[][] = { "topczas", "say /ttop15", "say_team /ttop15", "say /toptime", "say_team /toptime", "say /ctop15", "say_team /ctop15", "say /topczas", "say_team /topczas" };
-new const cmdStats[][] = { "say /staty", "say_team /staty", "say /beststats", "say_team /beststats", "say /bstats", "say_team /bstats", "say /najlepszestaty", "say_team /najlepszestaty", "say /nstaty", "say_team /nstaty" };
-new const cmdStatsTop[][] = { "najlepszestaty", "say /stop15", "say_team /stop15", "say /topstats", "say_team /topstats", "say /topstaty", "say_team /topstaty", "topstaty" };
+new const cmdBestStats[][] = { "najlepszestaty", "say /staty", "say_team /staty", "say /beststats", "say_team /beststats", "say /bstats", "say_team /bstats", "say /najlepszestaty", "say_team /najlepszestaty", "say /nstaty", "say_team /nstaty" };
+new const cmdBestStatsTop[][] = { "topstaty", "say /stop15", "say_team /stop15", "say /topstats", "say_team /topstats", "say /topstaty", "say_team /topstaty" };
 new const cmdMedals[][] = { "medale", "say /medal", "say_team /medal", "say /medale", "say_team /medale", "say /medals", "say_team /medals" };
 new const cmdMedalsTop[][] = { "topmedale", "say /mtop15", "say_team /mtop15", "say /topmedals", "say_team /topmedals", "say /topmedale", "say_team /topmedale" };
 new const cmdSounds[][] = { "dzwieki", "say /dzwiek", "say_team /dzwiek", "say /dzwieki", "say_team /dzwieki", "say /sound", "say_team /sound" };
 
 enum _:forwards { FORWARD_DAMAGE, FORWARD_DEATH, FORWARD_ASSIST, FORWARD_PLANTING, FORWARD_PLANTED, FORWARD_EXPLODE, FORWARD_DEFUSING, FORWARD_DEFUSED, FORWARD_THROW };
 enum _:statsData { STATS_KILLS = HIT_END, STATS_DEATHS, STATS_HS, STATS_TK, STATS_SHOTS, STATS_HITS, STATS_DAMAGE, STATS_RANK };
+enum _:killerData { KILLER_ID = STATS_END, KILLER_HEALTH, KILLER_ARMOR, KILLER_TEAM, KILLER_DISTANCE };
 enum _:winers { THIRD, SECOND, FIRST };
 enum _:save { NORMAL = -1, ROUND, FINAL, MAP_END };
 enum _:types { STATS, ROUND_STATS, WEAPON_STATS, WEAPON_ROUND_STATS, ATTACKER_STATS, VICTIM_STATS };
+enum _:formulas { FORMULA_KD, FORMULA_KILLS, FORMULA_KILLS_HS, FORMULA_ELO, FORMULA_TIME };
 enum _:playerData{ BOMB_DEFUSIONS = STATS_END, BOMB_DEFUSED, BOMB_PLANTED, BOMB_EXPLODED, ADMIN, PLAYER_ID, FIRST_VISIT, LAST_VISIT, TIME, CONNECTS, ASSISTS, ROUNDS, ROUNDS_CT, ROUNDS_T, WIN_CT, 
 	WIN_T, BRONZE, SILVER, GOLD, MEDALS, BEST_STATS, BEST_KILLS, BEST_DEATHS, BEST_HS, CURRENT_STATS, CURRENT_KILLS, CURRENT_DEATHS, CURRENT_HS, Float:ELO_RANK, NAME[32], SAFE_NAME[64], STEAMID[32], IP[16] };
 
 new playerStats[MAX_PLAYERS + 1][playerData], playerRStats[MAX_PLAYERS + 1][playerData], playerWStats[MAX_PLAYERS + 1][MAX_WEAPONS][STATS_END], playerWRStats[MAX_PLAYERS + 1][MAX_WEAPONS][STATS_END], 
-	playerAStats[MAX_PLAYERS + 1][MAX_PLAYERS + 1][STATS_END], playerVStats[MAX_PLAYERS + 1][MAX_PLAYERS + 1][STATS_END], weaponsAmmo[MAX_PLAYERS + 1][MAX_WEAPONS], statsForwards[forwards], statsNum,
+	playerAStats[MAX_PLAYERS + 1][MAX_PLAYERS + 1][ALL_END], playerVStats[MAX_PLAYERS + 1][MAX_PLAYERS + 1][ALL_END], weaponsAmmo[MAX_PLAYERS + 1][MAX_WEAPONS], statsForwards[forwards], statsNum,
 	Handle:sql, Handle:connection, bool:sqlConnection, bool:oneAndOnly, bool:block, bool:mapChange, round, sounds, statsLoaded, weaponStatsLoaded, visit, soundMayTheForce, soundOneAndOnly, soundPrepare, 
-	soundHumiliation, soundLastLeft, ret, cvarSaveType, rankSaveType, assistEnabled, assistMinDamage, assistMoney, assistInfoEnabled, leaderInfoEnabled, killerInfoEnabled, victimInfoEnabled, medalsEnabled, 
-	prefixEnabled, xvsxEnabled, soundsEnabled, planter, defuser;
+	soundHumiliation, soundLastLeft, ret, rankSaveType, rankFormula, weaponRankFormula, assistEnabled, assistMinDamage, assistMoney, assistInfoEnabled, leaderInfoEnabled, killerInfoEnabled, 
+	victimInfoEnabled, medalsEnabled, prefixEnabled, xvsxEnabled, soundsEnabled, hpEnabled, meEnabled, statsMeEnabled, rankEnabled, rankStatsEnabled, top15Enabled, topMeEnabled, planter, defuser;
 
 public plugin_init()
 {
 	register_plugin(PLUGIN, VERSION, AUTHOR);
 
-	create_cvar("ultimate_stats_host", "localhost", FCVAR_SPONLY | FCVAR_PROTECTED); 
-	create_cvar("ultimate_stats_user", "user", FCVAR_SPONLY | FCVAR_PROTECTED); 
-	create_cvar("ultimate_stats_pass", "password", FCVAR_SPONLY | FCVAR_PROTECTED); 
+	create_cvar("ultimate_stats_host", "localhost", FCVAR_SPONLY | FCVAR_PROTECTED);
+	create_cvar("ultimate_stats_user", "user", FCVAR_SPONLY | FCVAR_PROTECTED);
+	create_cvar("ultimate_stats_pass", "password", FCVAR_SPONLY | FCVAR_PROTECTED);
 	create_cvar("ultimate_stats_db", "database", FCVAR_SPONLY | FCVAR_PROTECTED);
 
-	cvarSaveType = get_cvar_pointer("csstats_rank");
-
+	bind_pcvar_num(create_cvar("ultimate_stats_rank_save_type", "0"), rankSaveType); // 0 - nick | 1 - steamid | 2 - ip
+	bind_pcvar_num(create_cvar("ultimate_stats_rank_formula", "0"), rankFormula); // 0 - kills- deaths - tk | 1 - kills | 2 - kills + hs | 3 - elo rank (skill) | 4 - played time
+	bind_pcvar_num(create_cvar("ultimate_stats_weapon_rank_formula", "0"), weaponRankFormula); // 0 - kills- deaths - tk | 1 - kills | 2 - kills + hs
 	bind_pcvar_num(create_cvar("ultimate_stats_assist_enabled", "1"), assistEnabled);
 	bind_pcvar_num(create_cvar("ultimate_stats_assist_min_damage", "65"), assistMinDamage);
 	bind_pcvar_num(create_cvar("ultimate_stats_assist_money", "300"), assistMoney);
@@ -101,16 +124,33 @@ public plugin_init()
 	bind_pcvar_num(create_cvar("ultimate_stats_prefix_enabled", "1"), soundsEnabled);
 	bind_pcvar_num(create_cvar("ultimate_stats_xvsx_enabled", "1"), xvsxEnabled);
 	bind_pcvar_num(create_cvar("ultimate_stats_sounds_enabled", "1"), soundsEnabled);
+	bind_pcvar_num(create_cvar("ultimate_stats_hp_enabled", "1"), hpEnabled);
+	bind_pcvar_num(create_cvar("ultimate_stats_me_enabled", "1"), meEnabled);
+	bind_pcvar_num(create_cvar("ultimate_stats_statsme_enabled", "1"), statsMeEnabled);
+	bind_pcvar_num(create_cvar("ultimate_stats_rank_enabled", "1"), rankEnabled);
+	bind_pcvar_num(create_cvar("ultimate_stats_rankstats_enabled", "1"), rankStatsEnabled);
+	bind_pcvar_num(create_cvar("ultimate_stats_top15_enabled", "1"), top15Enabled);
+	bind_pcvar_num(create_cvar("ultimate_stats_topme_enabled", "1"), topMeEnabled);
 
-	for(new i; i < sizeof(cmdMenu); i++) register_clcmd(cmdMenu[i], "cmd_menu");
+	//for(new i; i < sizeof(cmdMenu); i++) register_clcmd(cmdMenu[i], "cmd_menu");
+	for(new i; i < sizeof(cmdHP); i++) register_clcmd(cmdHP[i], "cmd_hp");
+	for(new i; i < sizeof(cmdMe); i++) register_clcmd(cmdMe[i], "cmd_me");
+	for(new i; i < sizeof(cmdStatsMe); i++) register_clcmd(cmdStatsMe[i], "cmd_statsme");
+	for(new i; i < sizeof(cmdRank); i++) register_clcmd(cmdRank[i], "cmd_rank");
+	for(new i; i < sizeof(cmdRankStats); i++) register_clcmd(cmdRankStats[i], "cmd_rankstats");
+	for(new i; i < sizeof(cmdTop15); i++) register_clcmd(cmdTop15[i], "cmd_top15");
+	for(new i; i < sizeof(cmdTopMe); i++) register_clcmd(cmdTopMe[i], "cmd_topme");
 	for(new i; i < sizeof(cmdTime); i++) register_clcmd(cmdTime[i], "cmd_time");
 	for(new i; i < sizeof(cmdTimeAdmin); i++) register_clcmd(cmdTimeAdmin[i], "cmd_time_admin");
 	for(new i; i < sizeof(cmdTimeTop); i++) register_clcmd(cmdTimeTop[i], "cmd_time_top");
-	for(new i; i < sizeof(cmdStats); i++) register_clcmd(cmdStats[i], "cmd_stats");
-	for(new i; i < sizeof(cmdStatsTop); i++) register_clcmd(cmdStatsTop[i], "cmd_stats_top");
+	for(new i; i < sizeof(cmdBestStats); i++) register_clcmd(cmdBestStats[i], "cmd_stats");
+	for(new i; i < sizeof(cmdBestStatsTop); i++) register_clcmd(cmdBestStatsTop[i], "cmd_stats_top");
 	for(new i; i < sizeof(cmdMedals); i++) register_clcmd(cmdMedals[i], "cmd_medals");
 	for(new i; i < sizeof(cmdMedalsTop); i++) register_clcmd(cmdMedalsTop[i], "cmd_medals_top");
 	for(new i; i < sizeof(cmdSounds); i++) register_clcmd(cmdSounds[i], "cmd_sounds");
+
+	register_clcmd("say", "weapons_top15_handle");
+	register_clcmd("say_team", "weapons_top15_handle");
 	
 	statsForwards[FORWARD_DAMAGE] = CreateMultiForward("client_damage", ET_IGNORE, FP_CELL, FP_CELL, FP_CELL, FP_CELL, FP_CELL, FP_CELL);
 	statsForwards[FORWARD_DEATH] =  CreateMultiForward("client_death", ET_IGNORE, FP_CELL, FP_CELL, FP_CELL, FP_CELL, FP_CELL);
@@ -122,7 +162,7 @@ public plugin_init()
 	statsForwards[FORWARD_DEFUSED] = CreateMultiForward("bomb_defused", ET_IGNORE, FP_CELL);
 	statsForwards[FORWARD_THROW] = CreateMultiForward("grenade_throw", ET_IGNORE, FP_CELL, FP_CELL, FP_CELL);
 
-	RegisterHam(Ham_Spawn , "player", "player_spawned", 1);
+	RegisterHam(Ham_Spawn, "player", "player_spawned", 1);
 
 	register_logevent("round_end", 2, "1=Round_End");
 	register_logevent("planted_bomb", 3, "2=Planted_The_Bomb");
@@ -138,7 +178,7 @@ public plugin_init()
 	register_event("23", "planted_bomb_no_round", "a", "1=17", "6=-105", "7=17");
 	register_event("BarTime", "planting_bomb", "be", "1=3");
 	register_event("CurWeapon", "cur_weapon", "b" ,"1=1");
-	register_event("Damage", "damage","b", "2!0");
+	register_event("Damage", "damage", "b", "2!0");
 
 	register_message(SVC_INTERMISSION, "message_intermission");
 	register_message(get_user_msgid("SayText"), "say_text");
@@ -150,9 +190,9 @@ public plugin_natives()
 {
 	register_library("csstats");
 
-	register_native("get_statsnum", "native_get_statsnum");
-	register_native("get_stats", "native_get_stats");
-	register_native("get_stats2", "native_get_stats2");
+	register_native("statsnum", "native_statsnum");
+	register_native("stats", "native_stats");
+	register_native("stats2", "native_stats2");
 	register_native("get_user_stats", "native_get_user_stats");
 	register_native("get_user_stats2", "native_get_user_stats2");
 	register_native("get_user_wstats", "native_get_user_wstats");
@@ -160,6 +200,8 @@ public plugin_natives()
 	register_native("get_user_wrstats", "native_get_user_wrstats");
 	register_native("get_user_vstats", "native_get_user_vstats");
 	register_native("get_user_astats", "native_get_user_astats");
+	register_native("get_user_elo", "native_get_user_elo");
+	register_native("get_user_total_time", "native_get_user_total_time");
 	register_native("reset_user_wstats", "native_reset_user_wstats");
 }
 
@@ -171,8 +213,6 @@ public plugin_cfg()
 
 	server_cmd("exec %s/ultimate_stats.cfg", configPath);
 	server_exec();
-
-	rankSaveType = get_pcvar_num(cvarSaveType);
 
 	sql_init();
 }
@@ -253,17 +293,17 @@ public check_time(id)
 	
 	new time = get_systime(), visitYear, Year, visitMonth, Month, visitDay, Day, visitHour, visitMinutes, visitSeconds;
 	
-	UnixToTime(time, visitYear, visitMonth, visitDay, visitHour, visitMinutes, visitSeconds, UT_TIMEZONE_SERVER);
+	UnixToTime(time, visitYear, visitMonth, visitDay, visitHour, visitMinutes, visitSeconds);
 	
-	client_print_color(id, id, "^x04[STATS]^x01 Aktualnie jest godzina^x03 %02d:%02d:%02d (Data: %02d.%02d.%02d)^x01.", visitHour, visitMinutes, visitSeconds, visitDay, visitMonth, visitYear);
+	client_print_color(id, id, "* Aktualnie jest godzina^x03 %02d:%02d:%02d (Data: %02d.%02d.%02d)^x01. *", visitHour, visitMinutes, visitSeconds, visitDay, visitMonth, visitYear);
 	
-	if (playerStats[id][FIRST_VISIT] == playerStats[id][LAST_VISIT]) client_print_color(id, id, "^x04[STATS]^x01 To twoja^x04 pierwsza wizyta^x01 na serwerze. Zyczymy milej gry!" );
+	if (playerStats[id][FIRST_VISIT] == playerStats[id][LAST_VISIT]) client_print_color(id, id, "* To twoja^x04 pierwsza wizyta^x01 na serwerze. Zyczymy milej gry! *");
 	else {
-		UnixToTime(playerStats[id][LAST_VISIT], Year, Month, Day, visitHour, visitMinutes, visitSeconds, UT_TIMEZONE_SERVER);
+		UnixToTime(playerStats[id][LAST_VISIT], Year, Month, Day, visitHour, visitMinutes, visitSeconds);
 		
-		if (visitYear == Year && visitMonth == Month && visitDay == Day) client_print_color(id, id, "^x04[STATS]^x01 Twoja ostatnia wizyta miala miejsce^x03 dzisiaj^x01 o^x03 %02d:%02d:%02d^x01. Zyczymy milej gry!", visitHour, visitMinutes, visitSeconds);
-		else if (visitYear == Year && visitMonth == Month && (visitDay - 1) == Day) client_print_color(id, id, "^x04[STATS]^x01 Twoja ostatnia wizyta miala miejsce^x03 wczoraj^x01 o^x03 %02d:%02d:%02d^x01. Zyczymy milej gry!", visitHour, visitMinutes, visitSeconds);
-		else client_print_color(id, id, "^x04[STATS]^x01 Twoja ostatnia wizyta:^x03 %02d:%02d:%02d (Data: %02d.%02d.%02d)^x01. Zyczymy milej gry!", visitHour, visitMinutes, visitSeconds, Day, Month, Year);
+		if (visitYear == Year && visitMonth == Month && visitDay == Day) client_print_color(id, id, "* Twoja ostatnia wizyta miala miejsce^x03 dzisiaj^x01 o^x03 %02d:%02d:%02d^x01. Zyczymy milej gry! *", visitHour, visitMinutes, visitSeconds);
+		else if (visitYear == Year && visitMonth == Month && (visitDay - 1) == Day) client_print_color(id, id, "* Twoja ostatnia wizyta miala miejsce^x03 wczoraj^x01 o^x03 %02d:%02d:%02d^x01. Zyczymy milej gry! *", visitHour, visitMinutes, visitSeconds);
+		else client_print_color(id, id, "* Twoja ostatnia wizyta:^x03 %02d:%02d:%02d (Data: %02d.%02d.%02d)^x01. Zyczymy milej gry! *", visitHour, visitMinutes, visitSeconds, Day, Month, Year);
 	}
 }
 
@@ -443,6 +483,9 @@ public damage(victim)
 		playerVStats[attacker][0][HIT_GENERIC]++;
 		playerAStats[victim][0][HIT_GENERIC]++;
 
+		playerVStats[attacker][victim][STATS_RANK] = weapon;
+		playerAStats[victim][attacker][STATS_RANK] = weapon;
+
 		if (hitPlace) {
 			playerStats[attacker][hitPlace]++;
 			playerRStats[attacker][hitPlace]++;
@@ -468,11 +511,21 @@ public death(killer, victim, weapon, hitPlace, teamKill)
 	playerWStats[victim][weapon][STATS_DEATHS]++;
 	playerWRStats[victim][weapon][STATS_DEATHS]++;
 
+	if (is_user_connected(killer)) playerAStats[victim][0][KILLER_TEAM] = get_user_team(killer);
+
 	save_stats(victim, NORMAL);
 
 	if (is_user_connected(killer) && killer != victim) {
+		new killerOrigin[3], victimOrigin[3];
+
 		playerStats[killer][ELO_RANK] = _:set_elo(playerStats[killer][ELO_RANK], 1.0, get_elo(playerStats[victim][ELO_RANK], playerStats[killer][ELO_RANK]));
 		playerStats[victim][ELO_RANK] = floatmax(1.0, set_elo(playerStats[victim][ELO_RANK], 0.0, get_elo(playerStats[killer][ELO_RANK], playerStats[victim][ELO_RANK])));
+
+		playerAStats[victim][0][KILLER_ID] = killer;
+		playerAStats[victim][0][KILLER_HEALTH] = get_user_health(killer);
+		playerAStats[victim][0][KILLER_ARMOR] = get_user_armor(killer);
+
+		playerAStats[killer][victim][KILLER_DISTANCE] = playerVStats[victim][0][KILLER_DISTANCE] = get_distance(victimOrigin, killerOrigin);
 
 		playerStats[killer][CURRENT_KILLS]++;
 		playerStats[killer][STATS_KILLS]++;
@@ -724,16 +777,14 @@ public message_intermission()
 
 public say_text(msgId, msgDest, msgEnt)
 {
-	if (!prefixEnabled) return PLUGIN_CONTINUE;
-
 	new id = get_msg_arg_int(1);
 	
 	if (is_user_connected(id)) {
-		new tempMessage[192], message[192], playerName[32], chatPrefix[16];
+		static tempMessage[192], message[192], chatPrefix[16];
 		
 		get_msg_arg_string(2, tempMessage, charsmax(tempMessage));
 
-		if (playerStats[id][STATS_RANK] > 3) return PLUGIN_CONTINUE;
+		if (playerStats[id][STATS_RANK] > 3 || !prefixEnabled) return PLUGIN_CONTINUE;
 			
 		switch (playerStats[id][STATS_RANK]) {
 			case 1: formatex(chatPrefix, charsmax(chatPrefix), "^x04[TOP1]");
@@ -746,14 +797,12 @@ public say_text(msgId, msgDest, msgEnt)
 			add(message, charsmax(message), " ");
 			add(message, charsmax(message), tempMessage);
 		} else {
-	        get_user_name(id, playerName, charsmax(playerName));
-	        
 	        get_msg_arg_string(4, tempMessage, charsmax(tempMessage)); 
 	        set_msg_arg_string(4, "");
 	    
 	        add(message, charsmax(message), chatPrefix);
 	        add(message, charsmax(message), "^x03 ");
-	        add(message, charsmax(message), playerName);
+	        add(message, charsmax(message), playerStats[id][NAME]);
 	        add(message, charsmax(message), "^x01 :  ");
 	        add(message, charsmax(message), tempMessage);
 		}
@@ -764,13 +813,393 @@ public say_text(msgId, msgDest, msgEnt)
 	return PLUGIN_CONTINUE;
 }
 
+public cmd_hp(id)
+{
+	if (!hpEnabled) return PLUGIN_CONTINUE;
+
+	new killer = playerAStats[id][0][KILLER_ID];
+
+	static message[192];
+
+	if (killer && killer != id) {
+		new weaponName[32], stats[8], hits[8], length;
+
+		copy_stats(id, hits, sizeof(hits), _, ATTACKER_STATS, _, killer);
+		copy_stats(id, stats, charsmax(stats), HIT_END, ATTACKER_STATS, _, killer);
+
+		get_weaponname(stats[stat(STATS_RANK)], weaponName, charsmax(weaponName));
+
+		replace_all(weaponName, charsmax(weaponName), "weapon_", "");
+
+		length = formatex(message, charsmax(message), "Zabity przez^x03 %s^x01 z %s z odleglosci %0.0fm (^x04 %d HP^x01,^x04 %d AP^x01). Szczegoly: ", playerStats[killer][NAME], weaponName, distance(playerAStats[id][0][KILLER_DISTANCE]), playerAStats[id][0][KILLER_HEALTH], playerAStats[id][0][KILLER_ARMOR]);
+
+		if (stats[stat(STATS_HITS)]) {
+			for (new i = 1, hit = 0; i < sizeof(hits); i++) {
+				if (!hits[i]) continue;
+
+				if (hit) length += formatex(message[length], charsmax(message) - length, ", ");
+
+				length += formatex(message[length], charsmax(message) - length, "%s: %d", body[i], hits[i]);
+
+				hit++;
+			}
+		} else length += formatex(message[length], charsmax(message) - length, "zadnych trafien");
+	} else formatex(message, charsmax(message), "Nie masz zadnego zabojcy");
+
+	client_print_color(id, killer, "* %s. *", message);
+
+	return PLUGIN_HANDLED;
+}
+
+public cmd_me(id)
+{
+	if (!meEnabled) return PLUGIN_CONTINUE;
+
+	static message[192];
+
+	new stats[8], hits[8], length;
+
+	copy_stats(id, hits, sizeof(hits), _, VICTIM_STATS, _, 0);
+	copy_stats(id, stats, charsmax(stats), HIT_END, VICTIM_STATS, _, 0);
+
+	length = formatex(message, charsmax(message), "Ostatni rezultat:^x04 %d^x01 trafien,^x04 %d^x01 obrazen. Szczegoly: ", stats[stat(STATS_HITS)], stats[stat(STATS_DAMAGE)]);
+
+	if (stats[stat(STATS_HITS)]) {
+		for (new i = 1, hit = 0; i < sizeof(hits); i++) {
+			if (!hits[i]) continue;
+
+			if (hit) length += formatex(message[length], charsmax(message) - length, ", ");
+
+			length += formatex(message[length], charsmax(message) - length, "%s: %d", body[i], hits[i]);
+
+			hit++;
+		}
+	} else length += formatex(message[length], charsmax(message) - length, "zadnych trafien");
+
+	client_print_color(id, id, "* %s. *", message);
+
+	return PLUGIN_HANDLED;
+}
+
+public cmd_statsme(id, player)
+{
+	if (!statsMeEnabled) return PLUGIN_CONTINUE;
+
+	static motdData[2048], weaponName[32], motdLength, target;
+
+	motdLength = 0;
+
+	target = player ? player : id;
+
+	motdLength = formatex(motdData, charsmax(motdData), "<meta charset=utf-8><body bgcolor=#000000><font color=#FFB000><pre>");
+
+	motdLength += formatex(motdData[motdLength], charsmax(motdData) - motdLength, "%16s: %d (%d z HS)^n%16s: %d^n%16s: %d^n%16s: %d^n%16s: %d^n%16s: %0.2f%%^n%16s: %0.2f%%^n^n", "Zabojstwa", playerStats[target][STATS_KILLS], playerStats[target][STATS_HS], "Zgony", playerStats[target][STATS_DEATHS], "Trafienia", 
+		playerStats[target][STATS_HITS], "Strzaly", playerStats[target][STATS_SHOTS], "Obrazenia", playerStats[target][STATS_DAMAGE], "Efektywnosc", effec(playerStats[target][STATS_KILLS], playerStats[target][STATS_DEATHS]), "Celnosc", accuracy(playerStats[target][STATS_SHOTS], playerStats[target][STATS_HITS]));
+
+	motdLength += format(motdData[motdLength], charsmax(motdData) - motdLength, "%8s %6s %7s %2s %6s %4s %4s %4s^n", "Bron", "Zabojstwa", "Zgony", "HS", "Trafienia", "Strzaly", "Efe.", "Cel.");
+
+	for (new i = 1; i < MAX_WEAPONS; i++) {
+		if ((i == CSW_SHIELD || i == CSW_C4 || i == CSW_FLASHBANG || i == CSW_SMOKEGRENADE) || (!playerWStats[target][i][STATS_SHOTS] && !playerWStats[target][i][STATS_DEATHS])) continue;
+
+		get_weaponname(i, weaponName, charsmax(weaponName));
+
+		replace_all(weaponName, charsmax(weaponName), "weapon_", "");
+
+		motdLength += format(motdData[motdLength], charsmax(motdData) - motdLength, "%8s %6d %6d %5d %7d %9d %3.0f%% %3.0f%%^n", weaponName, playerWStats[target][i][STATS_KILLS], playerWStats[target][i][STATS_DEATHS], playerWStats[target][i][STATS_HS], 
+			playerWStats[target][i][STATS_HITS], playerWStats[target][i][STATS_SHOTS], effec(playerWStats[target][i][STATS_KILLS], playerWStats[target][i][STATS_DEATHS]), accuracy(playerWStats[target][i][STATS_SHOTS], playerWStats[target][i][STATS_HITS]));
+	}
+
+	show_motd(id, motdData, playerStats[target][NAME]);
+
+	return PLUGIN_HANDLED;
+}
+
+public cmd_rank(id)
+{
+	if (!rankEnabled) return PLUGIN_CONTINUE;
+
+	client_print_color(id, id, "* Masz^x04 %d^x01 zabojstw,^x04 %d^x01 trafien,^x04 %.2f^x01%% efektywnosci i^x04 %.2f^x01%% celnosci. *", playerStats[id][STATS_KILLS], playerStats[id][STATS_HITS], effec(playerStats[id][STATS_KILLS], playerStats[id][STATS_DEATHS]), accuracy(playerStats[id][STATS_SHOTS], playerStats[id][STATS_HITS]));
+	client_print_color(id, id, "* Twoj ranking wynosi^x03 %d^x01 na^x03 %d^x01. *", playerStats[id][STATS_RANK], statsNum);
+
+	return PLUGIN_HANDLED;
+}
+
+public cmd_rankstats(id, player)
+{
+	if (!rankStatsEnabled) return PLUGIN_CONTINUE;
+
+	static motdData[4096], motdLength, target;
+
+	motdLength = 0;
+
+	target = player ? player : id;
+
+	motdLength = formatex(motdData, charsmax(motdData), "<meta charset=utf-8><body bgcolor=#000000><font color=#FFB000><pre>");
+
+	if (player) motdLength += formatex(motdData[motdLength], charsmax(motdData) - motdLength, "Ranking gracza %s wynosi %i na %i^n^n", playerStats[target][NAME], playerStats[target][STATS_RANK], statsNum);
+	else motdLength += formatex(motdData[motdLength], charsmax(motdData) - motdLength, "Twoj ranking wynosi %i na %i^n^n", playerStats[target][STATS_RANK], statsNum);
+
+	motdLength += formatex(motdData[motdLength], charsmax(motdData) - motdLength, "%16s: %d (%d z HS)^n%16s: %d^n%16s: %d^n%16s: %d^n%16s: %d^n%16s: %0.2f%%^n%16s: %0.2f%%^n^n", "Zabojstwa", playerStats[target][STATS_KILLS], playerStats[target][STATS_HS], "Zgony", playerStats[target][STATS_DEATHS], "Trafienia", 
+		playerStats[target][STATS_HITS], "Strzaly", playerStats[target][STATS_SHOTS], "Obrazenia", playerStats[target][STATS_DAMAGE], "Efektywnosc", effec(playerStats[target][STATS_KILLS], playerStats[target][STATS_DEATHS]), "Celnosc", accuracy(playerStats[target][STATS_SHOTS], playerStats[target][STATS_HITS]));
+
+	motdLength += formatex(motdData[motdLength], charsmax(motdData) - motdLength, "TRAFIENIA^n%16s: %d^n%16s: %d^n%16s: %d^n%16s: %d^n%16s: %d^n%16s: %d^n%16s: %d", body[HIT_HEAD], playerStats[target][HIT_HEAD], body[HIT_CHEST], playerStats[target][HIT_CHEST], 
+		body[HIT_STOMACH], playerStats[target][HIT_STOMACH], body[HIT_LEFTARM], playerStats[target][HIT_LEFTARM], body[HIT_RIGHTARM], playerStats[target][HIT_RIGHTARM], body[HIT_LEFTLEG], playerStats[target][HIT_LEFTLEG], body[HIT_RIGHTLEG], playerStats[target][HIT_RIGHTLEG]);
+
+	show_motd(id, motdData, playerStats[target][NAME]);
+
+	return PLUGIN_HANDLED;
+}
+
+public cmd_top15(id)
+{
+	if (!top15Enabled) return PLUGIN_CONTINUE;
+
+	new queryData[256], queryTemp[96], playerId[1];
+
+	playerId[0] = id;
+	
+	get_rank_formula(queryTemp, charsmax(queryTemp), 0);
+
+	formatex(queryData, charsmax(queryData), "SELECT a.name, a.kills, a.deaths, a.hs_kills, a.shots, a.hits, a.elo_rank FROM `ultimate_stats` a ORDER BY %s LIMIT 15", queryTemp);
+
+	SQL_ThreadQuery(sql, "show_top15", queryData, playerId, sizeof(playerId));
+
+	return PLUGIN_HANDLED;
+}
+
+public show_top15(failState, Handle:query, error[], errorNum, playerId[], dataSize)
+{
+	if (failState) {
+		log_to_file("ultimate_stats.log", "SQL Error: %s (%d)", error, errorNum);
+		
+		return PLUGIN_HANDLED;
+	}
+
+	static motdData[2048], name[32], Float:elo, motdLength, place, kills, deaths, hs, shots, hits;
+
+	motdLength = 0, place = 0;
+	
+	new id = playerId[0];
+	
+	motdLength = format(motdData, charsmax(motdData), "<body bgcolor=#000000><font color=#FFB000><pre>");
+
+	if (rankFormula == FORMULA_ELO) motdLength += format(motdData[motdLength], charsmax(motdData) - motdLength, "%2s %-22.22s %4s %5s %7s %2s %6s %4s %4s %4s^n", "#", "Nick", "Skill", "Zabojstwa", "Zgony", "HS", "Trafienia", "Strzaly", "Efe.", "Cel.");
+	else motdLength += format(motdData[motdLength], charsmax(motdData) - motdLength, "%2s %-22.22s %5s %7s %2s %6s %4s %4s %4s^n", "#", "Nick", "Zabojstwa", "Zgony", "HS", "Trafienia", "Strzaly", "Efe.", "Cel.");
+
+	while (SQL_MoreResults(query)) {
+		place++;
+
+		SQL_ReadResult(query, 0, name, charsmax(name));
+
+		replace_all(name, charsmax(name), "<", "");
+		replace_all(name, charsmax(name), ">", "");
+
+		kills = SQL_ReadResult(query, 1);
+		deaths = SQL_ReadResult(query, 2);
+		hs = SQL_ReadResult(query, 3);
+		shots = SQL_ReadResult(query, 4);
+		hits = SQL_ReadResult(query, 5);
+
+		if (rankFormula == FORMULA_ELO) {
+			SQL_ReadResult(query, 6, elo);
+
+			motdLength += format(motdData[motdLength], charsmax(motdData) - motdLength, "%2d %-22.22s %4.2f %6d %7d %6d %7d %7d %3.0f%% %3.0f%%^n", place, name, elo, kills, deaths, hs, hits, shots, effec(kills, deaths), accuracy(shots, hits));
+		} else motdLength += format(motdData[motdLength], charsmax(motdData) - motdLength, "%2d %-22.22s %6d %7d %6d %7d %7d %3.0f%% %3.0f%%^n", place, name, kills, deaths, hs, hits, shots, effec(kills, deaths), accuracy(shots, hits));
+		
+		SQL_NextRow(query);
+	}
+	
+	show_motd(id, motdData, "Top15");
+	
+	return PLUGIN_HANDLED;
+}
+
+public cmd_topme(id)
+{
+	if (!topMeEnabled) return PLUGIN_CONTINUE;
+
+	new queryData[256], queryTemp[96], playerId[2], start = 0;
+
+	if (playerStats[id][STATS_RANK] > 7) start = playerStats[id][STATS_RANK] - 7;
+	else if (playerStats[id][STATS_RANK] + 8 >= statsNum) start = statsNum - 15;
+
+	playerId[0] = id;
+	playerId[1] = start;
+	
+	get_rank_formula(queryTemp, charsmax(queryTemp), 0);
+
+	formatex(queryData, charsmax(queryData), "SELECT a.name, a.kills, a.deaths, a.hs_kills, a.shots, a.hits, a.elo_rank FROM `ultimate_stats` a ORDER BY %s LIMIT %i, 15", queryTemp, start);
+
+	SQL_ThreadQuery(sql, "show_topme", queryData, playerId, sizeof(playerId));
+
+	return PLUGIN_HANDLED;
+}
+
+public show_topme(failState, Handle:query, error[], errorNum, playerId[], dataSize)
+{
+	if (failState) {
+		log_to_file("ultimate_stats.log", "SQL Error: %s (%d)", error, errorNum);
+		
+		return PLUGIN_HANDLED;
+	}
+
+	static motdData[2048], name[32], Float:elo, motdLength, kills, deaths, hs, shots, hits;
+
+	motdLength = 0;
+	
+	new id = playerId[0], place = playerId[1];
+	
+	motdLength = format(motdData, charsmax(motdData), "<body bgcolor=#000000><font color=#FFB000><pre>");
+
+	if (rankFormula == FORMULA_ELO) motdLength += format(motdData[motdLength], charsmax(motdData) - motdLength, "%2s %-22.22s %4s %5s %7s %2s %6s %4s %4s %4s^n", "#", "Nick", "Skill", "Zabojstwa", "Zgony", "HS", "Trafienia", "Strzaly", "Efe.", "Cel.");
+	else motdLength += format(motdData[motdLength], charsmax(motdData) - motdLength, "%2s %-22.22s %5s %7s %2s %6s %4s %4s %4s^n", "#", "Nick", "Zabojstwa", "Zgony", "HS", "Trafienia", "Strzaly", "Efe.", "Cel.");
+
+	while (SQL_MoreResults(query)) {
+		place++;
+
+		SQL_ReadResult(query, 0, name, charsmax(name));
+
+		replace_all(name, charsmax(name), "<", "");
+		replace_all(name, charsmax(name), ">", "");
+
+		kills = SQL_ReadResult(query, 1);
+		deaths = SQL_ReadResult(query, 2);
+		hs = SQL_ReadResult(query, 3);
+		shots = SQL_ReadResult(query, 4);
+		hits = SQL_ReadResult(query, 5);
+
+		if (rankFormula == FORMULA_ELO) {
+			SQL_ReadResult(query, 6, elo);
+
+			motdLength += format(motdData[motdLength], charsmax(motdData) - motdLength, "%2d %-22.22s %4.2f %6d %7d %6d %7d %7d %3.0f%% %3.0f%%^n", place, name, elo, kills, deaths, hs, hits, shots, effec(kills, deaths), accuracy(shots, hits));
+		} else motdLength += format(motdData[motdLength], charsmax(motdData) - motdLength, "%2d %-22.22s %6d %7d %6d %7d %7d %3.0f%% %3.0f%%^n", place, name, kills, deaths, hs, hits, shots, effec(kills, deaths), accuracy(shots, hits));
+		
+		SQL_NextRow(query);
+	}
+	
+	show_motd(id, motdData, "Top15");
+	
+	return PLUGIN_HANDLED;
+}
+
+public cmd_weapon_top15(id, weapon)
+{
+	new queryData[512], weaponName[32], playerId[2];
+
+	get_weaponname(weapon, weaponName, charsmax(weaponName));
+
+	playerId[0] = id;
+	playerId[1] = weapon;
+	
+	if(weapon == CSW_KNIFE) formatex(queryData, charsmax(queryData), "SELECT a.name, b.kills, b.hs_kills FROM `ultimate_stats` a JOIN `ultimate_stats_weapons` b ON a.id = b.player_id WHERE b.weapon = 'weapon_knife' ORDER BY b.kills DESC, b.hs_kills DESC LIMIT 15");
+	else if(weapon == CSW_HEGRENADE) formatex(queryData, charsmax(queryData), "SELECT a.name, b.kills FROM `ultimate_stats` a JOIN `ultimate_stats_weapons` b ON a.id = b.player_id WHERE b.weapon = 'weapon_hegrenade' ORDER BY b.kills DESC LIMIT 15");
+	else {
+		new queryTemp[96];
+
+		get_rank_formula(queryTemp, charsmax(queryTemp), 0, 1);
+
+		formatex(queryData, charsmax(queryData), "SELECT b.name, a.kills, a.deaths, a.hs_kills, a.shots, a.hits FROM `ultimate_stats` b JOIN `ultimate_stats_weapons` a ON b.id = a.player_id WHERE a.weapon = '%s' ORDER BY %s LIMIT 15", weaponName, queryTemp);
+	}
+
+	SQL_ThreadQuery(sql, "show_weapon_top15", queryData, playerId, sizeof(playerId));
+
+	return PLUGIN_HANDLED;
+}
+
+public show_weapon_top15(failState, Handle:query, error[], errorNum, playerId[], dataSize)
+{
+	if (failState) {
+		log_to_file("ultimate_stats.log", "SQL Error: %s (%d)", error, errorNum);
+		
+		return PLUGIN_HANDLED;
+	}
+
+	static motdData[2048], topName[64], name[32], motdLength, place, kills, deaths, hs, shots, hits;
+
+	motdLength = 0, place = 0;
+	
+	new id = playerId[0], weapon = playerId[1];
+
+	get_weaponname(weapon, topName, charsmax(topName));
+
+	replace_all(topName, charsmax(topName), "weapon_", "");
+
+	ucfirst(topName);
+
+	add(topName, charsmax(topName), " Top15");
+	
+	motdLength = format(motdData, charsmax(motdData), "<body bgcolor=#000000><font color=#FFB000><pre>");
+
+	if(weapon == CSW_KNIFE) {
+		motdLength += format(motdData[motdLength], charsmax(motdData) - motdLength, "%2s %-22.22s %10s %13s^n", "#", "Nick", "Zabojstwa", "HS");
+
+		while (SQL_MoreResults(query)) {
+			place++;
+
+			SQL_ReadResult(query, 0, name, charsmax(name));
+
+			replace_all(name, charsmax(name), "<", "");
+			replace_all(name, charsmax(name), ">", "");
+
+			kills = SQL_ReadResult(query, 1);
+			hs = SQL_ReadResult(query, 2);
+			
+			motdLength += format(motdData[motdLength], charsmax(motdData) - motdLength, "%2i %-22.22s %5d %7d^n", place, name, kills, hs);
+			
+			SQL_NextRow(query);
+		}
+	} else if(weapon == CSW_HEGRENADE) {
+		motdLength += format(motdData[motdLength], charsmax(motdData) - motdLength, "%2s %-22.22s %13s^n", "#", "Nick", "Zabojstwa");
+
+		while (SQL_MoreResults(query)) {
+			place++;
+
+			SQL_ReadResult(query, 0, name, charsmax(name));
+
+			replace_all(name, charsmax(name), "<", "");
+			replace_all(name, charsmax(name), ">", "");
+
+			kills = SQL_ReadResult(query, 1);
+			
+			motdLength += format(motdData[motdLength], charsmax(motdData) - motdLength, "%2i %-22.22s %6d^n", place, name, kills);
+			
+			SQL_NextRow(query);
+		}
+	} else {
+		motdLength += format(motdData[motdLength], charsmax(motdData) - motdLength, "%2s %-22.22s %5s %7s %2s %6s %4s %4s %4s^n", "#", "Nick", "Zabojstwa", "Zgony", "HS", "Trafienia", "Strzaly", "Efe.", "Cel.");
+
+		while (SQL_MoreResults(query)) {
+			place++;
+
+			SQL_ReadResult(query, 0, name, charsmax(name));
+
+			replace_all(name, charsmax(name), "<", "");
+			replace_all(name, charsmax(name), ">", "");
+
+			kills = SQL_ReadResult(query, 1);
+			deaths = SQL_ReadResult(query, 2);
+			hs = SQL_ReadResult(query, 3);
+			shots = SQL_ReadResult(query, 4);
+			hits = SQL_ReadResult(query, 5);
+			
+			motdLength += format(motdData[motdLength], charsmax(motdData) - motdLength, "%2d %-22.22s %6d %7d %6d %7d %7d %3.0f%% %3.0f%%^n", place, name, kills, deaths, hs, hits, shots, effec(kills, deaths), accuracy(shots, hits));
+			
+			SQL_NextRow(query);
+		}
+	}
+	
+	show_motd(id, motdData, topName);
+	
+	return PLUGIN_HANDLED;
+}
+
 public cmd_time(id)
 {
 	new queryData[192], playerId[1];
 
 	playerId[0] = id;
 	
-	formatex(queryData, charsmax(queryData), "SELECT rank, count FROM (SELECT COUNT(*) AS count FROM `ultimate_stats`) a CROSS JOIN (SELECT COUNT(*) AS rank FROM `ultimate_stats` WHERE time > %i ORDER BY time DESC) b", playerStats[id][TIME] + get_user_time(id));
+	formatex(queryData, charsmax(queryData), "SELECT `rank`, `all` FROM (SELECT COUNT(*) AS `all` FROM `ultimate_stats`) a CROSS JOIN (SELECT COUNT(*) + 1 AS `rank` FROM `ultimate_stats` WHERE time > %i ORDER BY time DESC) b", playerStats[id][TIME] + get_user_time(id));
 
 	SQL_ThreadQuery(sql, "show_time", queryData, playerId, sizeof(playerId));
 
@@ -785,7 +1214,7 @@ public show_time(failState, Handle:query, error[], errorNum, playerId[], dataSiz
 		return PLUGIN_HANDLED;
 	}
 	
-	new id = playerId[0], rank = SQL_ReadResult(query, 0) + 1, players = SQL_ReadResult(query, 1), seconds = (playerStats[id][TIME] + get_user_time(id)), minutes, hours;
+	new id = playerId[0], rank = SQL_ReadResult(query, 0), players = SQL_ReadResult(query, 1), seconds = (playerStats[id][TIME] + get_user_time(id)), minutes, hours;
 	
 	while (seconds >= 60) {
 		seconds -= 60;
@@ -797,8 +1226,8 @@ public show_time(failState, Handle:query, error[], errorNum, playerId[], dataSiz
 		hours++;
 	}
 	
-	client_print_color(id, id, "^x04[STATS]^x01 Spedziles na serwerze lacznie^x03 %i h %i min %i s^x01.", hours, minutes, seconds);
-	client_print_color(id, id, "^x04[STATS]^x01 Zajmujesz^x03 %i/%i^x01 miejsce w rankingu czasu gry.", rank, players);
+	client_print_color(id, id, "* Spedziles na serwerze lacznie^x04 %i h %i min %i s^x01. *", hours, minutes, seconds);
+	client_print_color(id, id, "* Zajmujesz^x03 %i^x01 na^x03 %i^x01 miejsce w rankingu czasu gry. *", rank, players);
 
 	return PLUGIN_HANDLED;
 }
@@ -824,14 +1253,14 @@ public show_time_admin_top(failState, Handle:query, error[], errorNum, playerId[
 		return PLUGIN_HANDLED;
 	}
 
-	static topData[2048], name[32], topLength, place, seconds, minutes, hours;
+	static motdData[2048], name[32], motdLength, place, seconds, minutes, hours;
 
-	topLength = 0, place = 0;
+	motdLength = 0, place = 0;
 	
 	new id = playerId[0];
 	
-	topLength = format(topData, charsmax(topData), "<body bgcolor=#000000><font color=#FFB000><pre>");
-	topLength += format(topData[topLength], charsmax(topData) - topLength, "%1s %-22.22s %9s^n", "#", "Nick", "Czas Gry");
+	motdLength = format(motdData, charsmax(motdData), "<body bgcolor=#000000><font color=#FFB000><pre>");
+	motdLength += format(motdData[motdLength], charsmax(motdData) - motdLength, "%2s %-22.22s %9s^n", "#", "Nick", "Czas Gry");
 	
 	while (SQL_MoreResults(query)) {
 		place++;
@@ -855,13 +1284,12 @@ public show_time_admin_top(failState, Handle:query, error[], errorNum, playerId[
 			hours++;
 		}
 		
-		if (place >= 10) topLength += format(topData[topLength], charsmax(topData) - topLength, "%1i %-22.22s %0ih %1imin %1is^n", place, name, hours, minutes, seconds);
-		else topLength += format(topData[topLength], charsmax(topData) - topLength, "%1i %-22.22s %1ih %1imin %1is^n", place, name, hours, minutes, seconds);
+		motdLength += format(motdData[motdLength], charsmax(motdData) - motdLength, "%2i %-22.22s %0ih %1imin %1is^n", place, name, hours, minutes, seconds);
 		
 		SQL_NextRow(query);
 	}
 	
-	show_motd(id, topData, "Czas Gry Adminow");
+	show_motd(id, motdData, "Czas Gry Adminow");
 	
 	return PLUGIN_HANDLED;
 }
@@ -885,14 +1313,14 @@ public show_time_top(failState, Handle:query, error[], errorNum, playerId[], dat
 		return PLUGIN_HANDLED;
 	}
 
-	static topData[2048], name[32], topLength, place, seconds, minutes, hours;
+	static motdData[2048], name[32], motdLength, place, seconds, minutes, hours;
 
-	topLength = 0, place = 0;
+	motdLength = 0, place = 0;
 	
 	new id = playerId[0];
 	
-	topLength = format(topData, charsmax(topData), "<body bgcolor=#000000><font color=#FFB000><pre>");
-	topLength += format(topData[topLength], charsmax(topData) - topLength, "%1s %-22.22s %9s^n", "#", "Nick", "Czas Gry");
+	motdLength = format(motdData, charsmax(motdData), "<body bgcolor=#000000><font color=#FFB000><pre>");
+	motdLength += format(motdData[motdLength], charsmax(motdData) - motdLength, "%2s %-22.22s %9s^n", "#", "Nick", "Czas Gry");
 	
 	while (SQL_MoreResults(query)) {
 		place++;
@@ -916,13 +1344,12 @@ public show_time_top(failState, Handle:query, error[], errorNum, playerId[], dat
 			hours++;
 		}
 		
-		if (place >= 10) topLength += format(topData[topLength], charsmax(topData) - topLength, "%1i %-22.22s %0ih %1imin %1is^n", place, name, hours, minutes, seconds);
-		else topLength += format(topData[topLength], charsmax(topData) - topLength, "%1i %-22.22s %1ih %1imin %1is^n", place, name, hours, minutes, seconds);
+		motdLength += format(motdData[motdLength], charsmax(motdData) - motdLength, "%2i %-22.22s %0ih %1imin %1is^n", place, name, hours, minutes, seconds);
 		
 		SQL_NextRow(query);
 	}
 	
-	show_motd(id, topData, "Top15 Czasu Gry");
+	show_motd(id, motdData, "Top15 Czasu Gry");
 	
 	return PLUGIN_HANDLED;
 }
@@ -935,7 +1362,7 @@ public cmd_stats(id)
 
 	playerStats[id][CURRENT_STATS] = playerStats[id][CURRENT_KILLS] * 2 + playerStats[id][CURRENT_HS] - playerStats[id][CURRENT_DEATHS] * 2;
 	
-	formatex(queryData, charsmax(queryData), "SELECT rank, count FROM (SELECT COUNT(*) AS count FROM `ultimate_stats`) a CROSS JOIN (SELECT COUNT(*) AS rank FROM `ultimate_stats` WHERE best_stats > %i ORDER BY `best_stats` DESC) b", 
+	formatex(queryData, charsmax(queryData), "SELECT `rank`, `all` FROM (SELECT COUNT(*) AS `all` FROM `ultimate_stats`) a CROSS JOIN (SELECT COUNT(*) + 1 AS `rank` FROM `ultimate_stats` WHERE best_stats > %i ORDER BY `best_stats` DESC) b", 
 	playerStats[id][CURRENT_STATS] > playerStats[id][BEST_STATS] ? playerStats[id][CURRENT_STATS] : playerStats[id][BEST_STATS]);
 
 	SQL_ThreadQuery(sql, "show_stats", queryData, playerId, sizeof(playerId));
@@ -951,12 +1378,12 @@ public show_stats(failState, Handle:query, error[], errorNum, playerId[], dataSi
 		return PLUGIN_HANDLED;
 	}
 	
-	new id = playerId[0], rank = SQL_ReadResult(query, 0) + 1, players = SQL_ReadResult(query, 1);
+	new id = playerId[0], rank = SQL_ReadResult(query, 0), players = SQL_ReadResult(query, 1);
 	
-	if (playerStats[id][CURRENT_STATS] > playerStats[id][BEST_STATS]) client_print_color(id, id, "^x04[STATS]^x01 Twoje najlepsze staty to^x03 %i^x01 zabic (w tym^x03 %i^x01 z HS) i^x03 %i^x01 zgonow^x01.", playerStats[id][CURRENT_KILLS], playerStats[id][CURRENT_HS], playerStats[id][CURRENT_DEATHS]);
-	else client_print_color(id, id, "^x04[STATS]^x01 Twoje najlepsze staty to^x03 %i^x01 zabic (w tym^x03 %i^x01 z HS) i^x03 %i^x01 zgonow^x01.", playerStats[id][BEST_KILLS], playerStats[id][BEST_HS], playerStats[id][BEST_DEATHS]);
+	if (playerStats[id][CURRENT_STATS] > playerStats[id][BEST_STATS]) client_print_color(id, id, "* Twoje najlepsze staty to^x03 %i^x01 zabic (w tym^x03 %i^x01 z HS) i^x03 %i^x01 zgonow^x01. *", playerStats[id][CURRENT_KILLS], playerStats[id][CURRENT_HS], playerStats[id][CURRENT_DEATHS]);
+	else client_print_color(id, id, "* Twoje najlepsze staty to^x03 %i^x01 zabic (w tym^x03 %i^x01 z HS) i^x03 %i^x01 zgonow^x01. *", playerStats[id][BEST_KILLS], playerStats[id][BEST_HS], playerStats[id][BEST_DEATHS]);
 
-	client_print_color(id, id, "^x04[STATS]^x01 Zajmujesz^x03 %i/%i^x01 miejsce w rankingu najlepszych statystyk.", rank, players);
+	client_print_color(id, id, "* Zajmujesz^x03 %i^x01 na^x03  %i^x01 miejsce w rankingu najlepszych statystyk. *", rank, players);
 
 	return PLUGIN_HANDLED;
 }
@@ -982,14 +1409,14 @@ public show_stats_top(failState, Handle:query, error[], errorNum, playerId[], da
 		return PLUGIN_HANDLED;
 	}
 
-	static topData[2048], name[32], topLength, place, kills, headShots, deaths;
+	static motdData[2048], name[32], motdLength, place, kills, headShots, deaths;
 
-	topLength = 0, place = 0;
+	motdLength = 0, place = 0;
 	
 	new id = playerId[0];
 	
-	topLength = format(topData, charsmax(topData), "<body bgcolor=#000000><font color=#FFB000><pre>");
-	topLength += format(topData[topLength], charsmax(topData) - topLength, "%1s %-22.22s %19s %4s^n", "#", "Nick", "Zabojstwa", "Zgony");
+	motdLength = format(motdData, charsmax(motdData), "<body bgcolor=#000000><font color=#FFB000><pre>");
+	motdLength += format(motdData[motdLength], charsmax(motdData) - motdLength, "%2s %-22.22s %19s %4s^n", "#", "Nick", "Zabojstwa", "Zgony");
 	
 	while (SQL_MoreResults(query))
 	{
@@ -1004,13 +1431,12 @@ public show_stats_top(failState, Handle:query, error[], errorNum, playerId[], da
 		headShots = SQL_ReadResult(query, 2);
 		deaths = SQL_ReadResult(query, 3);
 		
-		if (place >= 10) topLength += format(topData[topLength], charsmax(topData) - topLength, "%1i %-22.22s %1d (%i HS) %12d^n", place, name, kills, headShots, deaths);
-		else topLength += format(topData[topLength], charsmax(topData) - topLength, "%1i %-22.22s %2d (%i HS) %12d^n", place, name, kills, headShots, deaths);
+		motdLength += format(motdData[motdLength], charsmax(motdData) - motdLength, "%2i %-22.22s %1d (%i HS) %12d^n", place, name, kills, headShots, deaths);
 		
 		SQL_NextRow(query);
 	}
 	
-	show_motd(id, topData, "Top15 Statystyk");
+	show_motd(id, motdData, "Top15 Statystyk");
 	
 	return PLUGIN_HANDLED;
 }
@@ -1021,7 +1447,7 @@ public cmd_medals(id)
 
 	playerId[0] = id;
 	
-	formatex(queryData, charsmax(queryData), "SELECT rank, count FROM (SELECT COUNT(*) AS count FROM `ultimate_stats`) a CROSS JOIN (SELECT COUNT(*) AS rank FROM `ultimate_stats` WHERE medals > %i ORDER BY `medals` DESC) b", playerStats[id][MEDALS]);
+	formatex(queryData, charsmax(queryData), "SELECT `rank`, `all` FROM (SELECT COUNT(*) AS `all` FROM `ultimate_stats`) a CROSS JOIN (SELECT COUNT(*) + 1 AS `rank` FROM `ultimate_stats` WHERE medals > %i ORDER BY `medals` DESC) b", playerStats[id][MEDALS]);
 
 	SQL_ThreadQuery(sql, "show_medals", queryData, playerId, sizeof(playerId));
 
@@ -1036,10 +1462,10 @@ public show_medals(failState, Handle:query, error[], errorNum, playerId[], dataS
 		return PLUGIN_HANDLED;
 	}
 	
-	new id = playerId[0], rank = SQL_ReadResult(query, 0) + 1, players = SQL_ReadResult(query, 1);
+	new id = playerId[0], rank = SQL_ReadResult(query, 0), players = SQL_ReadResult(query, 1);
 	
-	client_print_color(id, id, "^x04[STATS]^x01 Twoje medale:^x03 %i Zlote^x01,^x03 %i Srebre^x01,^x03 %i Brazowe^x01.", playerStats[id][GOLD], playerStats[id][SILVER], playerStats[id][BRONZE]);
-	client_print_color(id, id, "^x04[STATS]^x01 Zajmujesz^x03 %i/%i^x01 miejsce w rankingu medalowym.", rank, players);
+	client_print_color(id, id, "* Twoje medale:^x04 %i Zlote^x01,^x04 %i Srebre^x01,^x04 %i Brazowe^x01. *", playerStats[id][GOLD], playerStats[id][SILVER], playerStats[id][BRONZE]);
+	client_print_color(id, id, "* Zajmujesz^x03 %i^x01 na^x03 %i^x01 miejsce w rankingu medalowym. *", rank, players);
 	
 	return PLUGIN_HANDLED;
 }
@@ -1065,14 +1491,14 @@ public show_medals_top(failState, Handle:query, error[], errorNum, playerId[], d
 		return PLUGIN_HANDLED;
 	}
 
-	static topData[2048], name[32], topLength, place, gold, silver, bronze, medals;
+	static motdData[2048], name[32], motdLength, place, gold, silver, bronze, medals;
 
-	topLength = 0, place = 0;
+	motdLength = 0, place = 0;
 	
 	new id = playerId[0];
 	
-	topLength = format(topData, charsmax(topData), "<body bgcolor=#000000><font color=#FFB000><pre>");
-	topLength += format(topData[topLength], charsmax(topData) - topLength, "%1s %-22.22s %6s %8s %8s %5s^n", "#", "Nick", "Zlote", "Srebrne", "Brazowe", "Suma");
+	motdLength = format(motdData, charsmax(motdData), "<body bgcolor=#000000><font color=#FFB000><pre>");
+	motdLength += format(motdData[motdLength], charsmax(motdData) - motdLength, "%2s %-22.22s %6s %8s %8s %5s^n", "#", "Nick", "Zlote", "Srebrne", "Brazowe", "Suma");
 	
 	while (SQL_MoreResults(query)) {
 		place++;
@@ -1087,13 +1513,12 @@ public show_medals_top(failState, Handle:query, error[], errorNum, playerId[], d
 		bronze = SQL_ReadResult(query, 3);
 		medals = SQL_ReadResult(query, 4);
 		
-		if (place >= 10) topLength += format(topData[topLength], charsmax(topData) - topLength, "%1i %-22.22s %2d %7d %8d %7d^n", place, name, gold, silver, bronze, medals);
-		else topLength += format(topData[topLength], charsmax(topData) - topLength, "%1i %-22.22s %3d %7d %8d %7d^n", place, name, gold, silver, bronze, medals);
+		motdLength += format(motdData[motdLength], charsmax(motdData) - motdLength, "%2i %-22.22s %2d %7d %8d %7d^n", place, name, gold, silver, bronze, medals);
 		
 		SQL_NextRow(query);
 	}
 	
-	show_motd(id, topData, "Top15 Medali");
+	show_motd(id, motdData, "Top15 Medali");
 	
 	return PLUGIN_HANDLED;
 }
@@ -1153,6 +1578,40 @@ public cmd_sounds_handle(id, menu, item)
 	return PLUGIN_HANDLED;
 }
 
+public weapons_top15_handle(id)
+{
+	if (!top15Enabled) return PLUGIN_CONTINUE;
+
+	static message[32], command[32], weaponName[32];
+
+	read_argv(1, message, charsmax(message));
+	trim(message);
+
+	if (message[0] != '/') return PLUGIN_CONTINUE;
+
+	for (new i = 1; i < MAX_WEAPONS; i++) {
+		if (i == CSW_SHIELD || i == CSW_C4 || i == CSW_FLASHBANG || i == CSW_SMOKEGRENADE) continue;
+
+		get_weaponname(i, weaponName, charsmax(weaponName));
+
+		if (i == CSW_HEGRENADE) replace_all(weaponName, charsmax(weaponName), "hegrenade", "he");
+		else if (i == CSW_UMP45) replace_all(weaponName, charsmax(weaponName), "mp5navy", "mp5");
+		else if (i == CSW_MP5NAVY) replace_all(weaponName, charsmax(weaponName), "ump45", "ump");
+
+		replace_all(weaponName, charsmax(weaponName), "weapon_", "");
+
+		formatex(command, charsmax(command), "/%stop15", weaponName);
+
+		if (equali(message, command)) {
+			cmd_weapon_top15(id, i);
+
+			return PLUGIN_HANDLED;
+		}
+	}
+ 
+	return PLUGIN_CONTINUE;
+}
+
 public sql_init()
 {
 	new host[32], user[32], pass[32], db[32], error[128], errorNum;
@@ -1198,9 +1657,9 @@ public sql_init()
 
 	query = SQL_PrepareQuery(connection, queryData);
 
-	if (SQL_NumResults(query)) statsNum = SQL_ReadResult(query, 0);
-
 	SQL_Execute(query);
+
+	if (SQL_NumResults(query)) statsNum = SQL_ReadResult(query, 0);
 	
 	SQL_FreeHandle(query);
 
@@ -1221,11 +1680,13 @@ public load_stats(id)
 		return;
 	}
 
-	static playerId[1], queryData[256], queryTemp[64];
+	static playerId[1], queryData[256], queryTemp[96];
 	
 	playerId[0] = id;
 
-	formatex(queryData, charsmax(queryData), "SELECT a.*, (SELECT COUNT(*) FROM `ultimate_stats` WHERE (kills - deaths) >= (a.kills - a.deaths)) AS rank FROM `ultimate_stats` a WHERE ");
+	get_rank_formula(queryTemp, charsmax(queryTemp));
+
+	formatex(queryData, charsmax(queryData), "SELECT a.*, (SELECT COUNT(*) FROM `ultimate_stats` WHERE %s) + 1 AS `rank` FROM `ultimate_stats` a WHERE ", queryTemp);
 
 	switch (rankSaveType) {
 		case 0: formatex(queryTemp, charsmax(queryTemp), "`name` = ^"%s^"", playerStats[id][SAFE_NAME]);
@@ -1289,32 +1750,43 @@ public load_stats_handle(failState, Handle:query, error[], errorNum, playerId[],
 		playerStats[id][FIRST_VISIT] = SQL_ReadResult(query, SQL_FieldNameToNum(query, "first_visit"));
 		playerStats[id][LAST_VISIT] = SQL_ReadResult(query, SQL_FieldNameToNum(query, "last_visit"));
 
-		SQL_ReadResult(query, SQL_FieldNameToNum(query, "elo"), playerStats[id][ELO_RANK]);
+		SQL_ReadResult(query, SQL_FieldNameToNum(query, "elo_rank"), playerStats[id][ELO_RANK]);
 	} else {
-		static queryData[256], queryTemp[64], playerId[2];
+		statsNum++;
 
-		playerId[1] = playerId[0] = id;
+		static queryData[256];
 
 		formatex(queryData, charsmax(queryData), "INSERT IGNORE INTO `ultimate_stats` (`name`, `steamid`, `ip`, `first_visit`) VALUES (^"%s^", '%s', '%s', UNIX_TIMESTAMP())", playerStats[id][SAFE_NAME], playerStats[id][STEAMID], playerStats[id][IP]);
 
 		SQL_ThreadQuery(sql, "ignore_handle", queryData);
 
-		formatex(queryData, charsmax(queryData), "SELECT COUNT(*) AS `all`, (SELECT COUNT(*) FROM `ultimate_stats` WHERE (kills - deaths) >= (a.kills - a.deaths)) AS `rank` FROM `ultimate_stats` a WHERE ");
-
-		switch (rankSaveType) {
-			case 0: formatex(queryTemp, charsmax(queryTemp), "name = ^"%s^"", playerStats[id][SAFE_NAME]);
-			case 1: formatex(queryTemp, charsmax(queryTemp), "steamid = ^"%s^"", playerStats[id][STEAMID]);
-			case 2: formatex(queryTemp, charsmax(queryTemp), "ip = ^"%s^"", playerStats[id][IP]);
-		}
-
-		add(queryData, charsmax(queryData), queryTemp);
-		
-		SQL_ThreadQuery(sql, "get_rank_handle", queryData, playerId, sizeof(playerId));
+		get_rank(id);
 	}
 
 	set_bit(id, statsLoaded);
 
-	set_task(0.25, "load_weapons_stats", id);
+	set_task(0.5, "load_weapons_stats", id);
+}
+
+public get_rank(id)
+{
+	static queryData[256], queryTemp[96], playerId[1];
+
+	playerId[0] = id;
+
+	get_rank_formula(queryTemp, charsmax(queryTemp));
+
+	formatex(queryData, charsmax(queryData), "SELECT (SELECT COUNT(*) FROM `ultimate_stats` WHERE %s) + 1 AS `rank` FROM `ultimate_stats` a WHERE ", queryTemp);
+
+	switch (rankSaveType) {
+		case 0: formatex(queryTemp, charsmax(queryTemp), "name = ^"%s^"", playerStats[id][SAFE_NAME]);
+		case 1: formatex(queryTemp, charsmax(queryTemp), "steamid = ^"%s^"", playerStats[id][STEAMID]);
+		case 2: formatex(queryTemp, charsmax(queryTemp), "ip = ^"%s^"", playerStats[id][IP]);
+	}
+
+	add(queryData, charsmax(queryData), queryTemp);
+	
+	SQL_ThreadQuery(sql, "get_rank_handle", queryData, playerId, sizeof(playerId));
 }
 
 public get_rank_handle(failState, Handle:query, error[], errorNum, playerId[], dataSize)
@@ -1327,20 +1799,26 @@ public get_rank_handle(failState, Handle:query, error[], errorNum, playerId[], d
 	
 	new id = playerId[0];
 	
-	if (SQL_NumResults(query)) {
-		//if (!playerStats[id][PLAYER_ID]) playerStats[id][PLAYER_ID] = SQL_ReadResult(query, SQL_FieldNameToNum(query, "id"));
-		if (playerId[1]) statsNum = SQL_ReadResult(query, SQL_FieldNameToNum(query, "all"));
-		playerStats[id][STATS_RANK] = SQL_ReadResult(query, SQL_FieldNameToNum(query, "rank"));
-	}
+	if (SQL_NumResults(query)) playerStats[id][STATS_RANK] = SQL_ReadResult(query, SQL_FieldNameToNum(query, "rank"));
 }
 
 public load_weapons_stats(id)
 {
-	static queryData[256], playerId[1];
+	static queryData[256], queryTemp[96], playerId[1];
 
 	playerId[0] = id;
 
-	formatex(queryData, charsmax(queryData), "SELECT a.*, (SELECT COUNT(*) FROM `ultimate_stats_weapons` WHERE (kills - deaths) >= (a.kills - a.deaths) AND weapon = a.weapon) AS rank FROM `ultimate_stats_weapons` a WHERE `player_id` = '%i'", playerStats[id][PLAYER_ID]);
+	if (!playerStats[id][PLAYER_ID]) playerStats[id][PLAYER_ID] = get_player_id(id);
+
+	if (!playerStats[id][PLAYER_ID]) {
+		set_task(0.5, "load_weapons_stats", id);
+
+		return;
+	}
+
+	get_rank_formula(queryTemp, charsmax(queryTemp));
+
+	formatex(queryData, charsmax(queryData), "SELECT a.*, (SELECT COUNT(*) FROM `ultimate_stats_weapons` WHERE %s AND weapon = a.weapon) + 1 AS `rank` FROM `ultimate_stats_weapons` a WHERE `player_id` = '%i'", queryTemp, playerStats[id][PLAYER_ID]);
 		
 	SQL_ThreadQuery(sql, "load_weapons_stats_handle", queryData, playerId, sizeof(playerId));
 }
@@ -1356,8 +1834,6 @@ public load_weapons_stats_handle(failState, Handle:query, error[], errorNum, pla
 	new id = playerId[0], weaponName[32], weapon;
 	
 	while (SQL_MoreResults(query)) {
-		if (!playerStats[id][PLAYER_ID]) playerStats[id][PLAYER_ID] = SQL_ReadResult(query, SQL_FieldNameToNum(query, "player_id"));
-
 		SQL_ReadResult(query, SQL_FieldNameToNum(query, "weapon"), weaponName, charsmax(weaponName));
 
 		weapon = get_weaponid(weaponName);
@@ -1380,25 +1856,6 @@ public load_weapons_stats_handle(failState, Handle:query, error[], errorNum, pla
 		playerWStats[id][weapon][HIT_RIGHTLEG] = SQL_ReadResult(query, SQL_FieldNameToNum(query, "h_7"));
 
 		SQL_NextRow(query);
-	}
-
-	if (!weapon) {
-		static queryData[4096], queryTemp[196];
-		queryData = "";
-
-		if (!playerStats[id][PLAYER_ID]) playerStats[id][PLAYER_ID] = get_player_id(id);
-
-		for (new i = 1; i < MAX_WEAPONS; i++) {
-			if (i == CSW_SHIELD || i == CSW_C4 || i == CSW_FLASHBANG || i == CSW_SMOKEGRENADE) continue;
-
-			get_weaponname(i, weaponName, charsmax(weaponName));
-
-			formatex(queryTemp, charsmax(queryTemp), "INSERT IGNORE INTO `ultimate_stats_weapons` (`player_id`, `weapon`) VALUES ('%i', '%s');", playerStats[id][PLAYER_ID], weaponName);
-
-			add(queryData, charsmax(queryData), queryTemp);
-		}
-
-		SQL_ThreadQuery(sql, "ignore_handle", queryData);
 	}
 
 	set_bit(id, weaponStatsLoaded);
@@ -1463,24 +1920,7 @@ stock save_stats(id, end = 0)
 		SQL_FreeHandle(query);
 	} else SQL_ThreadQuery(sql, "ignore_handle", queryData);
 
-	if (end == ROUND) {
-		static playerId[2];
-
-		playerId[0] = id;
-		playerId[1] = 0;
-
-		formatex(queryData, charsmax(queryData), "SELECT (SELECT COUNT(*) FROM `ultimate_stats` WHERE (kills - deaths) >= (a.kills - a.deaths)) AS rank FROM `ultimate_stats` a WHERE ");
-
-		switch (rankSaveType) {
-			case 0: formatex(queryTemp, charsmax(queryTemp), "name = ^"%s^"", playerStats[id][SAFE_NAME]);
-			case 1: formatex(queryTemp, charsmax(queryTemp), "steamid = ^"%s^"", playerStats[id][STEAMID]);
-			case 2: formatex(queryTemp, charsmax(queryTemp), "ip = ^"%s^"", playerStats[id][IP]);
-		}
-
-		add(queryData, charsmax(queryData), queryTemp);
-		
-		SQL_ThreadQuery(sql, "get_rank_handle", queryData, playerId, sizeof(playerId));
-	}
+	if (end == ROUND) get_rank(id);
 
 	if (end > 0) rem_bit(id, statsLoaded);
 
@@ -1582,6 +2022,19 @@ stock get_player_id(id)
 	return playerId;
 }
 
+stock get_rank_formula(dest[], length, where = 1, weapon = 0)
+{
+	new formula = weapon ? weaponRankFormula : rankFormula;
+
+	switch (formula) {
+		case FORMULA_KD: formatex(dest, length, "(a.kills - a.deaths - a.team_kills)%s", where ? " < (kills - deaths - team_kills)" : " DESC, a.kills DESC, a.hs_kills DESC");
+		case FORMULA_KILLS: formatex(dest, length, "(a.kills)%s", where ? " < (kills)" : " DESC, a.kills, a.hs_kills DESC");
+		case FORMULA_KILLS_HS: formatex(dest, length, "(a.kills + a.hs_kills)%s", where ? " < (kills + hs_kills)" : " DESC, a.kills, a.hs_kills DESC");
+		case FORMULA_ELO: formatex(dest, length, "(a.elo_rank)%s", where ? " < (elo_rank)" : " DESC, a.kills, a.hs_kills DESC");
+		case FORMULA_TIME: formatex(dest, length, "(a.time)%s", where ? " < (time)" : " DESC, a.kills, a.hs_kills DESC");
+	}
+}
+
 stock clear_stats(player = 0, reset = 0)
 {
 	new limit = player ? player : MAX_PLAYERS;
@@ -1603,7 +2056,7 @@ stock clear_stats(player = 0, reset = 0)
 		}
 
 		for (new i = 1; i <= MAX_PLAYERS; i++) {
-			for (new j = 1; j < STATS_END; j++) {
+			for (new j = 1; j < ALL_END; j++) {
 				playerAStats[id][i][j] = 0;
 				playerVStats[id][i][j] = 0;
 			}
@@ -1624,6 +2077,23 @@ stock copy_stats(id, dest[], length, stats = 0, type = 0, weapon = 0, player = 0
 		}
 	}
 }
+
+stock Float:accuracy(shots, hits)
+{
+	if (!shots) return (0.0);
+	
+	return (100.0 * float(hits) / float(shots));
+}
+
+stock Float:effec(kills, deaths)
+{
+	if (!kills) return (0.0);
+	
+	return (100.0 * float(kills) / float(kills + deaths));
+}
+
+stock Float:distance(distance)
+	return float(distance) * 0.0254;
 
 stock get_loguser_index()
 {
@@ -1649,7 +2119,7 @@ stock sql_safe_string(const source[], dest[], length)
 	replace_all(dest, length, "^"", "\^"");
 }
 
-public native_get_stats(plugin, params)
+public native_stats(plugin, params)
 {
 	if (params < 5) {
 		log_error(AMX_ERR_NATIVE, "Bad arguments num, expected 5, passed %d.", params);
@@ -1663,9 +2133,11 @@ public native_get_stats(plugin, params)
 
 	new index = get_param(1);
 
-	static queryData[256], error[128], name[32], steamId[32], stats[8], hits[8], Handle:query, errorNum;
+	static queryData[256], error[128], queryTemp[96], name[32], steamId[32], stats[8], hits[8], Handle:query, errorNum;
+
+	get_rank_formula(queryTemp, charsmax(queryTemp), 0);
 	
-	formatex(queryData, charsmax(queryData), "SELECT kills, deaths, hs_kills, team_kills, shots, hits, damage, assists, h_0, h_1, h_2, h_3, h_4, h_5, h_6, h_7, name, steamid FROM `ultimate_stats` ORDER BY (kills - deaths) >= (a.kills - a.deaths)) DESC LIMIT %d, %d", index, index);
+	formatex(queryData, charsmax(queryData), "SELECT kills, deaths, hs_kills, team_kills, shots, hits, damage, assists, h_0, h_1, h_2, h_3, h_4, h_5, h_6, h_7, name, steamid FROM `ultimate_stats` ORDER BY %s LIMIT %d, %d", queryTemp, index, index);
 	
 	query = SQL_PrepareQuery(connection, queryData);
 	
@@ -1695,7 +2167,7 @@ public native_get_stats(plugin, params)
 	return 1;
 }
 
-public native_get_stats2(plugin, params)
+public native_stats2(plugin, params)
 {
 	if (params < 5) {
 		log_error(AMX_ERR_NATIVE, "Bad arguments num, expected 5, passed %d.", params);
@@ -1709,9 +2181,11 @@ public native_get_stats2(plugin, params)
 
 	new index = get_param(1);
 
-	static queryData[192], error[128], steamId[32], objectives[4], Handle:query, errorNum;
+	static queryData[192], error[128], queryTemp[96], steamId[32], objectives[4], Handle:query, errorNum;
+
+	get_rank_formula(queryTemp, charsmax(queryTemp), 0);
 	
-	formatex(queryData, charsmax(queryData), "SELECT defusions, defused, planted, exploded, steamid FROM `ultimate_stats` ORDER BY (kills - deaths) >= (a.kills - a.deaths)) DESC LIMIT %d, %d", index, index);
+	formatex(queryData, charsmax(queryData), "SELECT defusions, defused, planted, exploded, steamid FROM `ultimate_stats` ORDER BY %s LIMIT %d, %d", queryTemp, index, index);
 	
 	query = SQL_PrepareQuery(connection, queryData);
 	
@@ -1883,6 +2357,10 @@ public native_get_user_astats(plugin, params)
 		log_error(AMX_ERR_NATIVE, "Bad arguments num, expected 4, passed %d.", params);
 		
 		return 0;
+	} else if (params > 4 && params < 6) {
+		log_error(AMX_ERR_NATIVE, "Bad arguments num, expected 6, passed %d.", params);
+		
+		return 0;
 	}
 
 	new id = get_param(1), player = get_param(2);
@@ -1893,13 +2371,19 @@ public native_get_user_astats(plugin, params)
 		return 0;
 	}
 
-	static stats[8], hits[8];
+	static weaponName[32], stats[8], hits[8];
 
 	copy_stats(id, hits, sizeof(hits), _, ATTACKER_STATS, _, player);
-	copy_stats(id, stats, charsmax(stats), HIT_END, ATTACKER_STATS, _, player);
+	copy_stats(id, stats, sizeof(stats), HIT_END, ATTACKER_STATS, _, player);
 
 	set_array(3, stats, sizeof(stats));
-	set_array(4, hits, sizeof(stats));
+	set_array(4, hits, sizeof(hits));
+
+	if (params > 4) {
+		get_weaponname(stats[stat(STATS_RANK)], weaponName, charsmax(weaponName));
+
+		set_string(5, weaponName, get_param(6));
+	}
 
 	return hits[HIT_GENERIC];
 }
@@ -1910,6 +2394,10 @@ public native_get_user_vstats(plugin, params)
 		log_error(AMX_ERR_NATIVE, "Bad arguments num, expected 4, passed %d.", params);
 		
 		return 0;
+	} else if (params > 4 && params < 6) {
+		log_error(AMX_ERR_NATIVE, "Bad arguments num, expected 6, passed %d.", params);
+		
+		return 0;
 	}
 
 	new id = get_param(1), player = get_param(2);
@@ -1920,18 +2408,64 @@ public native_get_user_vstats(plugin, params)
 		return 0;
 	}
 
-	static stats[8], hits[8];
+	static weaponName[32], stats[8], hits[8];
 
 	copy_stats(id, hits, sizeof(hits), _, VICTIM_STATS, _, player);
-	copy_stats(id, stats, charsmax(stats), HIT_END, VICTIM_STATS, _, player);
+	copy_stats(id, stats, sizeof(stats), HIT_END, VICTIM_STATS, _, player);
 
 	set_array(3, stats, sizeof(stats));
-	set_array(4, hits, sizeof(stats));
+	set_array(4, hits, sizeof(hits));
+
+	if (params > 4) {
+		get_weaponname(stats[stat(STATS_RANK)], weaponName, charsmax(weaponName));
+
+		set_string(5, weaponName, get_param(6));
+	}
 
 	return hits[HIT_GENERIC];
 }
 
-public native_get_statsnum()
+public native_get_user_elo(plugin, params)
+{
+	if (params < 2) {
+		log_error(AMX_ERR_NATIVE, "Bad arguments num, expected 2, passed %d.", params);
+		
+		return 0;
+	}
+
+	new id = get_param(1);
+
+	if (!is_user_valid(id)) {
+		log_error(AMX_ERR_NATIVE, "Invalid player - %i.", id);
+		
+		return 0;
+	}
+
+	set_float_byref(2, playerStats[id][ELO_RANK]);
+
+	return 1;
+}
+
+public native_get_user_total_time(plugin, params)
+{
+	if (params < 1) {
+		log_error(AMX_ERR_NATIVE, "Bad arguments num, expected 1, passed %d.", params);
+		
+		return 0;
+	}
+
+	new id = get_param(1);
+
+	if (!is_user_valid(id)) {
+		log_error(AMX_ERR_NATIVE, "Invalid player - %i.", id);
+		
+		return 0;
+	}
+
+	return playerStats[id][TIME] + get_user_time(id);
+}
+
+public native_statsnum()
 	return statsNum;
 
 public native_reset_user_wstats(plugin, params)
@@ -1953,4 +2487,149 @@ public native_reset_user_wstats(plugin, params)
 	clear_stats(id, 1);
 
 	return 1;
+}
+
+/*
+	Unix Time Conversion by bugsy v0.3
+	http://forums.alliedmods.net/showthread.php?t=91915
+*/
+
+enum TimeZones { UT_TIMEZONE_SERVER, UT_TIMEZONE_MIT, UT_TIMEZONE_HAST, UT_TIMEZONE_AKST, UT_TIMEZONE_AKDT, UT_TIMEZONE_PST, UT_TIMEZONE_PDT, UT_TIMEZONE_MST, UT_TIMEZONE_MDT, UT_TIMEZONE_CST,
+	UT_TIMEZONE_CDT, UT_TIMEZONE_EST, UT_TIMEZONE_EDT, UT_TIMEZONE_PRT, UT_TIMEZONE_CNT, UT_TIMEZONE_AGT, UT_TIMEZONE_BET, UT_TIMEZONE_CAT, UT_TIMEZONE_UTC, UT_TIMEZONE_WET, UT_TIMEZONE_WEST,
+	UT_TIMEZONE_CET, UT_TIMEZONE_CEST, UT_TIMEZONE_EET, UT_TIMEZONE_EEST, UT_TIMEZONE_ART, UT_TIMEZONE_EAT, UT_TIMEZONE_MET, UT_TIMEZONE_NET, UT_TIMEZONE_PLT, UT_TIMEZONE_IST, UT_TIMEZONE_BST,
+	UT_TIMEZONE_ICT, UT_TIMEZONE_CTT, UT_TIMEZONE_AWST, UT_TIMEZONE_JST, UT_TIMEZONE_ACST, UT_TIMEZONE_AEST, UT_TIMEZONE_SST, UT_TIMEZONE_NZST, UT_TIMEZONE_NZDT };
+
+stock TimeZones:TimeZone;
+stock const DaySeconds = 86400;
+stock const HourSeconds = 3600;
+stock const MinuteSeconds = 60;
+stock const YearSeconds[2] = { 31536000, 31622400 };
+stock const MonthSeconds[12] = { 2678400, 2419200, 2678400, 2592000, 2678400, 2592000, 2678400, 2678400, 2592000, 2678400, 2592000, 2678400 };
+stock const TimeZoneOffset[TimeZones] = { -1, -39600, -36000, -32400, -28800, -28800, -25200, -25200, -21600, -21600, -18000, -18000, -14400, -14400, -12600, -10800,
+	-10800, -3600, 0, 0, 3600, 3600, 7200, 7200, 10800, 7200, 10800, 12600, 14400, 18000, 19800, 21600, 25200, 28800, 28800, 32400, 34200, 36000, 39600, 43200, 46800 };
+
+stock UnixToTime( iTimeStamp , &iYear , &iMonth , &iDay , &iHour , &iMinute , &iSecond , TimeZones:tzTimeZone=UT_TIMEZONE_UTC )
+{
+	new iTemp;
+	
+	iYear = 1970;
+	iMonth = 1;
+	iDay = 1;
+	iHour = 0;
+
+	if ( tzTimeZone == UT_TIMEZONE_SERVER )
+		tzTimeZone = GetTimeZone();
+		
+	iTimeStamp += TimeZoneOffset[ tzTimeZone ];
+	
+	while ( iTimeStamp > 0 )
+	{
+		iTemp = IsLeapYear(iYear);
+
+		if ( ( iTimeStamp - YearSeconds[iTemp] ) >= 0 )
+		{
+			iTimeStamp -= YearSeconds[iTemp];
+			iYear++;
+		}
+		else
+		{
+			break;
+		}
+	}
+
+	while ( iTimeStamp > 0 )
+	{
+		iTemp = SecondsInMonth( iYear , iMonth );
+
+		if ( ( iTimeStamp - iTemp ) >= 0 ) 
+		{
+			iTimeStamp -= iTemp;
+			iMonth++;
+		}
+		else
+		{
+			break;
+		}
+	}
+
+	while ( iTimeStamp > 0)
+	{
+		if ( ( iTimeStamp - DaySeconds ) >= 0 )
+		{
+			iTimeStamp -= DaySeconds;
+			iDay++;
+		}
+		else
+		{
+			break;
+		}
+	}
+	
+	while ( iTimeStamp > 0 )
+	{
+		if ( ( iTimeStamp - HourSeconds ) >= 0 )
+		{
+			iTimeStamp -= HourSeconds;
+			iHour++;
+		}
+		else
+		{
+			break;
+		}
+	}
+	
+	iMinute = ( iTimeStamp / 60 );
+	iSecond = ( iTimeStamp % 60 );
+}
+
+stock TimeToUnix( const iYear , const iMonth , const iDay , const iHour , const iMinute , const iSecond , TimeZones:tzTimeZone=UT_TIMEZONE_SERVER)
+{
+	new i , iTimeStamp;
+
+	for ( i = 1970 ; i < iYear ; i++ )
+		iTimeStamp += YearSeconds[ IsLeapYear(i) ];
+
+	for ( i = 1 ; i < iMonth ; i++ )
+		iTimeStamp += SecondsInMonth( iYear , i );
+
+	iTimeStamp += ( ( iDay - 1 ) * DaySeconds );
+	iTimeStamp += ( iHour * HourSeconds );
+	iTimeStamp += ( iMinute * MinuteSeconds );
+	iTimeStamp += iSecond;
+
+	if ( tzTimeZone == UT_TIMEZONE_SERVER )
+		tzTimeZone = GetTimeZone();
+		
+	return ( iTimeStamp + TimeZoneOffset[ tzTimeZone ] );
+}
+
+stock TimeZones:GetTimeZone()
+{
+	if ( TimeZone )
+		return TimeZone;
+	
+	new TimeZones:iZone , iOffset , iTime , iYear , iMonth , iDay , iHour , iMinute , iSecond;
+	date( iYear , iMonth , iDay );
+	time( iHour , iMinute , iSecond );
+	
+	iTime = TimeToUnix( iYear , iMonth , iDay , iHour , iMinute , iSecond , UT_TIMEZONE_UTC );
+	iOffset = iTime - get_systime();
+	
+	for ( iZone = TimeZones:0 ; iZone < TimeZones ; iZone++ )
+	{
+		if ( iOffset == TimeZoneOffset[ iZone ] )
+			break;
+	}
+	
+	return ( TimeZone = iZone );
+}
+
+stock SecondsInMonth( const iYear , const iMonth ) 
+{
+	return ( ( IsLeapYear( iYear ) && ( iMonth == 2 ) ) ? ( MonthSeconds[iMonth - 1] + DaySeconds ) : MonthSeconds[iMonth - 1] );
+}
+
+stock IsLeapYear( const iYear ) 
+{
+	return ( ( (iYear % 4) == 0) && ( ( (iYear % 100) != 0) || ( (iYear % 400) == 0 ) ) );
 }
