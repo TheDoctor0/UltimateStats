@@ -5,6 +5,7 @@
 #include <nvault>
 #include <sqlx>
 #include <fun>
+#include <unixtime>
 
 #define PLUGIN  "Ultimate Stats"
 #define VERSION "1.0"
@@ -34,34 +35,6 @@
 
 #define stat(%1)            (%1 - HIT_END - 2)      
 
-//COMMANDS:
-//say /hp ++
-//say /statsme +
-//say /rankstats ++
-//say /me ++
-//say /rank ++
-//say /topme ++
-//say /top15 (+ weapons) ++
-//OPTIONAL COMMANDS:
-//say /stats +
-//say /report +
-//say /score +
-//FEATURES:
-//eventShowRank (rank on spect)
-//show_user_hudstats (attackers, victims, kills)
-//show_roundend_hudstats (most kills/most disrruptive)
-//NATIVES:
-//stats(index,stats[8],bodyhits[8],name[],len); - overall stats for index from ranking  (https://www.amxmodx.org/api/tsstats/stats)
-//stats2(index, stats[4], authid[] = "", authidlen = 0); - overall stats for objectives for index from ranking (https://www.amxmodx.org/api/csstats/stats2)
-//get_user_stats(index,stats[8],bodyhits[8]); - overall player stats (https://www.amxmodx.org/api/tsstats/get_user_stats)
-//get_user_rstats(index,stats[8],bodyhits[8]); - round player stats (https://www.amxmodx.org/api/tsstats/get_user_rstats)
-//get_user_stats2(index, stats[4]); - overall player stats for objectives (https://www.amxmodx.org/api/csstats/get_user_stats2)
-//statsnum(); - numbers of players in ranking (https://www.amxmodx.org/api/tsstats/statsnum)
-//get_user_wstats(index,wpnindex,stats[8],bodyhits[8]); - overall player stats for given weapon (https://www.amxmodx.org/api/tsstats/get_user_wstats)
-//get_user_wrstats(index,wpnindex,stats[8],bodyhits[8]); - round player stats for given weapon (https://www.amxmodx.org/api/tsstats/get_user_wrstats)
-//get_user_vstats(index,victim,stats[8],bodyhits[8],wpnname[]="",len=0); - round victim stats (https://www.amxmodx.org/api/tsstats/get_user_vstats)
-//get_user_astats(index,wpnindex,stats[8],bodyhits[8],wpnname[]="",len=0); - round attacker stats (https://www.amxmodx.org/api/tsstats/get_user_astats)
-//reset_user_wstats(index); (https://www.amxmodx.org/api/tsstats/reset_user_wstats) - reset wrstats, vstats, astats
 new const body[][] = { "cialo", "glowa", "klatka piersiowa", "brzuch", "lewe ramie", "prawe ramie", "lewa noga", "prawa noga" };
 
 // new const cmdStats[][] = { "stats", "say /stats", "say_team /stats" };
@@ -69,7 +42,7 @@ new const body[][] = { "cialo", "glowa", "klatka piersiowa", "brzuch", "lewe ram
 // new const cmdReport[][] = { "report", "say /report", "say_team /report" };
 
 enum _:cmds { CMD_MENU, CMD_HP, CMD_ME, CMD_STATSME, CMD_RANK, CMD_RANKSTATS, CMD_TOP15, CMD_TOPME, CMD_TIME, CMD_TIMEADMIN, CMD_TIMETOP15, CMD_STATS, CMD_STATSTOP15, CMD_MEDALS, CMD_MEDALSTOP15, CMD_SOUNDS };
-enum _:forwards { FORWARD_DAMAGE, FORWARD_DEATH, FORWARD_ASSIST, FORWARD_REVENGE, FORWARD_PLANTING, FORWARD_PLANTED, FORWARD_EXPLODE, FORWARD_DEFUSING, FORWARD_DEFUSED, FORWARD_THROW };
+enum _:forwards { FORWARD_DAMAGE, FORWARD_DEATH, FORWARD_ASSIST, FORWARD_REVENGE, FORWARD_PLANTING, FORWARD_PLANTED, FORWARD_EXPLODE, FORWARD_DEFUSING, FORWARD_DEFUSED, FORWARD_THROW, FORWARD_LOADED };
 enum _:statsData { STATS_KILLS = HIT_END, STATS_DEATHS, STATS_HS, STATS_TK, STATS_SHOTS, STATS_HITS, STATS_DAMAGE, STATS_RANK };
 enum _:killerData { KILLER_ID = STATS_END, KILLER_HEALTH, KILLER_ARMOR, KILLER_TEAM, KILLER_DISTANCE };
 enum _:winers { THIRD, SECOND, FIRST };
@@ -164,6 +137,7 @@ public plugin_init()
 	statsForwards[FORWARD_DEFUSING] = CreateMultiForward("bomb_defusing", ET_IGNORE, FP_CELL);
 	statsForwards[FORWARD_DEFUSED] = CreateMultiForward("bomb_defused", ET_IGNORE, FP_CELL);
 	statsForwards[FORWARD_THROW] = CreateMultiForward("grenade_throw", ET_IGNORE, FP_CELL, FP_CELL, FP_CELL);
+	statsForwards[FORWARD_LOADED] = CreateMultiForward("stats_loaded", ET_IGNORE, FP_CELL);
 
 	RegisterHam(Ham_Spawn, "player", "player_spawned", 1);
 
@@ -184,6 +158,8 @@ public plugin_init()
 	register_event("CurWeapon", "cur_weapon", "b" ,"1=1");
 	register_event("Damage", "damage", "b", "2!0");
 	register_event("StatusValue", "show_rank", "bd", "1=2");
+
+	register_forward(FM_SetModel, "set_model", true);
 
 	register_message(SVC_INTERMISSION, "message_intermission");
 	register_message(get_user_msgid("SayText"), "say_text");
@@ -208,8 +184,9 @@ public plugin_natives()
 	register_native("get_user_wrstats", "native_get_user_wrstats");
 	register_native("get_user_vstats", "native_get_user_vstats");
 	register_native("get_user_astats", "native_get_user_astats");
-	register_native("get_user_elo", "native_get_user_elo");
 	register_native("get_user_total_time", "native_get_user_total_time");
+	register_native("get_user_elo", "native_get_user_elo");
+	register_native("add_user_elo", "native_add_user_elo");
 	register_native("reset_user_wstats", "native_reset_user_wstats");
 }
 
@@ -446,7 +423,7 @@ public defusing_bomb()
 public explode_bomb()
 {
 	if (is_user_connected(planter)) playerStats[planter][BOMB_EXPLODED]++;
-	
+
 	ExecuteForward(statsForwards[FORWARD_EXPLODE], ret, planter, defuser);
 }
 
@@ -783,6 +760,27 @@ public round_winner(team)
 	}
 }
 
+public set_model(ent, model[])
+{
+	static className[32], id, weapon; id = pev(ent, pev_owner);
+			
+	if (!is_user_connected(id)) return FMRES_IGNORED;
+
+	pev(ent, pev_classname, className, charsmax(className));
+
+	if (strcmp(className, "grenade") != 0) return FMRES_IGNORED;
+
+	switch (model[9]) {
+		case 'f': weapon = CSW_FLASHBANG;
+		case 'h': weapon = CSW_HEGRENADE;
+		case 's': weapon = CSW_SMOKEGRENADE;
+	}
+
+	ExecuteForward(statsForwards[FORWARD_THROW], ret, id, ent, weapon);
+	
+	return FMRES_IGNORED;
+}
+
 public message_intermission() 
 {
 	mapChange = true;
@@ -956,13 +954,6 @@ public show_user_hud_info(id, start)
 	new const victims[] = "Ofiary:^n", attackers[] = "Atakujacy:^n";
 
 	playerStats[id][HUD_INFO] = true;
-
-	// if (killerHudEnabled) {
-	// 	get_kill_info(id, iKiller, g_hudInfo);
-	// 	add_attacker_hits(id, iKiller, g_hudInfo);
-	// 	set_hudmessage(220, 80, 0, 0.05, 0.15, 0, 0.0, 6.0, 1.0, 1.0, -1);
-	// 	show_hudmessage(id, "%s", g_hudInfo);
-	// }
 
 	if (victimHudEnabled) {
 		hudInfo = "";
@@ -2110,7 +2101,7 @@ public load_weapons_stats_handle(failState, Handle:query, error[], errorNum, pla
 		return;
 	}
 	
-	new id = playerId[0], weaponName[32], weapon;
+	new id = playerId[0], weaponName[32], weapon, ret;
 	
 	while (SQL_MoreResults(query)) {
 		SQL_ReadResult(query, SQL_FieldNameToNum(query, "weapon"), weaponName, charsmax(weaponName));
@@ -2138,6 +2129,8 @@ public load_weapons_stats_handle(failState, Handle:query, error[], errorNum, pla
 	}
 
 	set_bit(id, weaponStatsLoaded);
+
+	ExecuteForward(statsForwards[FORWARD_LOADED], ret, id);
 }
 
 stock save_stats(id, end = 0)
@@ -2537,7 +2530,7 @@ public native_get_user_stats(plugin, params)
 	copy_stats(id, stats, sizeof(stats), HIT_END, STATS);
 
 	set_array(2, stats, sizeof(stats));
-	set_array(3, hits, sizeof(stats));
+	set_array(3, hits, sizeof(hits));
 
 	return 1;
 }
@@ -2730,27 +2723,6 @@ public native_get_user_vstats(plugin, params)
 	return hits[HIT_GENERIC];
 }
 
-public native_get_user_elo(plugin, params)
-{
-	if (params < 2) {
-		log_error(AMX_ERR_NATIVE, "Bad arguments num, expected 2, passed %d.", params);
-		
-		return 0;
-	}
-
-	new id = get_param(1);
-
-	if (!is_user_valid(id)) {
-		log_error(AMX_ERR_NATIVE, "Invalid player - %i.", id);
-		
-		return 0;
-	}
-
-	set_float_byref(2, playerStats[id][ELO_RANK]);
-
-	return 1;
-}
-
 public native_get_user_total_time(plugin, params)
 {
 	if (params < 1) {
@@ -2768,6 +2740,48 @@ public native_get_user_total_time(plugin, params)
 	}
 
 	return playerStats[id][TIME] + get_user_time(id);
+}
+
+public Float:native_get_user_elo(plugin, params)
+{
+	if (params < 1) {
+		log_error(AMX_ERR_NATIVE, "Bad arguments num, expected 1, passed %d.", params);
+		
+		return 0.0;
+	}
+
+	new id = get_param(1);
+
+	if (!is_user_valid(id)) {
+		log_error(AMX_ERR_NATIVE, "Invalid player - %i.", id);
+		
+		return 0.0;
+	}
+
+	return playerStats[id][ELO_RANK];
+}
+
+public native_add_user_elo(plugin, params)
+{
+	if (params < 2) {
+		log_error(AMX_ERR_NATIVE, "Bad arguments num, expected 2, passed %d.", params);
+		
+		return 0;
+	}
+
+	new id = get_param(1);
+
+	if (!is_user_valid(id)) {
+		log_error(AMX_ERR_NATIVE, "Invalid player - %i.", id);
+		
+		return 0;
+	}
+
+	playerStats[id][ELO_RANK] += get_param_f(2);
+
+	save_stats(id, NORMAL);
+
+	return 1;
 }
 
 public native_reset_user_wstats(plugin, params)
@@ -2789,149 +2803,4 @@ public native_reset_user_wstats(plugin, params)
 	clear_stats(id, 1);
 
 	return 1;
-}
-
-/*
-	Unix Time Conversion by bugsy v0.3
-	http://forums.alliedmods.net/showthread.php?t=91915
-*/
-
-enum TimeZones { UT_TIMEZONE_SERVER, UT_TIMEZONE_MIT, UT_TIMEZONE_HAST, UT_TIMEZONE_AKST, UT_TIMEZONE_AKDT, UT_TIMEZONE_PST, UT_TIMEZONE_PDT, UT_TIMEZONE_MST, UT_TIMEZONE_MDT, UT_TIMEZONE_CST,
-	UT_TIMEZONE_CDT, UT_TIMEZONE_EST, UT_TIMEZONE_EDT, UT_TIMEZONE_PRT, UT_TIMEZONE_CNT, UT_TIMEZONE_AGT, UT_TIMEZONE_BET, UT_TIMEZONE_CAT, UT_TIMEZONE_UTC, UT_TIMEZONE_WET, UT_TIMEZONE_WEST,
-	UT_TIMEZONE_CET, UT_TIMEZONE_CEST, UT_TIMEZONE_EET, UT_TIMEZONE_EEST, UT_TIMEZONE_ART, UT_TIMEZONE_EAT, UT_TIMEZONE_MET, UT_TIMEZONE_NET, UT_TIMEZONE_PLT, UT_TIMEZONE_IST, UT_TIMEZONE_BST,
-	UT_TIMEZONE_ICT, UT_TIMEZONE_CTT, UT_TIMEZONE_AWST, UT_TIMEZONE_JST, UT_TIMEZONE_ACST, UT_TIMEZONE_AEST, UT_TIMEZONE_SST, UT_TIMEZONE_NZST, UT_TIMEZONE_NZDT };
-
-stock TimeZones:TimeZone;
-stock const DaySeconds = 86400;
-stock const HourSeconds = 3600;
-stock const MinuteSeconds = 60;
-stock const YearSeconds[2] = { 31536000, 31622400 };
-stock const MonthSeconds[12] = { 2678400, 2419200, 2678400, 2592000, 2678400, 2592000, 2678400, 2678400, 2592000, 2678400, 2592000, 2678400 };
-stock const TimeZoneOffset[TimeZones] = { -1, -39600, -36000, -32400, -28800, -28800, -25200, -25200, -21600, -21600, -18000, -18000, -14400, -14400, -12600, -10800,
-	-10800, -3600, 0, 0, 3600, 3600, 7200, 7200, 10800, 7200, 10800, 12600, 14400, 18000, 19800, 21600, 25200, 28800, 28800, 32400, 34200, 36000, 39600, 43200, 46800 };
-
-stock UnixToTime( iTimeStamp , &iYear , &iMonth , &iDay , &iHour , &iMinute , &iSecond , TimeZones:tzTimeZone=UT_TIMEZONE_UTC )
-{
-	new iTemp;
-	
-	iYear = 1970;
-	iMonth = 1;
-	iDay = 1;
-	iHour = 0;
-
-	if ( tzTimeZone == UT_TIMEZONE_SERVER )
-		tzTimeZone = GetTimeZone();
-		
-	iTimeStamp += TimeZoneOffset[ tzTimeZone ];
-	
-	while ( iTimeStamp > 0 )
-	{
-		iTemp = IsLeapYear(iYear);
-
-		if ( ( iTimeStamp - YearSeconds[iTemp] ) >= 0 )
-		{
-			iTimeStamp -= YearSeconds[iTemp];
-			iYear++;
-		}
-		else
-		{
-			break;
-		}
-	}
-
-	while ( iTimeStamp > 0 )
-	{
-		iTemp = SecondsInMonth( iYear , iMonth );
-
-		if ( ( iTimeStamp - iTemp ) >= 0 ) 
-		{
-			iTimeStamp -= iTemp;
-			iMonth++;
-		}
-		else
-		{
-			break;
-		}
-	}
-
-	while ( iTimeStamp > 0)
-	{
-		if ( ( iTimeStamp - DaySeconds ) >= 0 )
-		{
-			iTimeStamp -= DaySeconds;
-			iDay++;
-		}
-		else
-		{
-			break;
-		}
-	}
-	
-	while ( iTimeStamp > 0 )
-	{
-		if ( ( iTimeStamp - HourSeconds ) >= 0 )
-		{
-			iTimeStamp -= HourSeconds;
-			iHour++;
-		}
-		else
-		{
-			break;
-		}
-	}
-	
-	iMinute = ( iTimeStamp / 60 );
-	iSecond = ( iTimeStamp % 60 );
-}
-
-stock TimeToUnix( const iYear , const iMonth , const iDay , const iHour , const iMinute , const iSecond , TimeZones:tzTimeZone=UT_TIMEZONE_SERVER)
-{
-	new i , iTimeStamp;
-
-	for ( i = 1970 ; i < iYear ; i++ )
-		iTimeStamp += YearSeconds[ IsLeapYear(i) ];
-
-	for ( i = 1 ; i < iMonth ; i++ )
-		iTimeStamp += SecondsInMonth( iYear , i );
-
-	iTimeStamp += ( ( iDay - 1 ) * DaySeconds );
-	iTimeStamp += ( iHour * HourSeconds );
-	iTimeStamp += ( iMinute * MinuteSeconds );
-	iTimeStamp += iSecond;
-
-	if ( tzTimeZone == UT_TIMEZONE_SERVER )
-		tzTimeZone = GetTimeZone();
-		
-	return ( iTimeStamp + TimeZoneOffset[ tzTimeZone ] );
-}
-
-stock TimeZones:GetTimeZone()
-{
-	if ( TimeZone )
-		return TimeZone;
-	
-	new TimeZones:iZone , iOffset , iTime , iYear , iMonth , iDay , iHour , iMinute , iSecond;
-	date( iYear , iMonth , iDay );
-	time( iHour , iMinute , iSecond );
-	
-	iTime = TimeToUnix( iYear , iMonth , iDay , iHour , iMinute , iSecond , UT_TIMEZONE_UTC );
-	iOffset = iTime - get_systime();
-	
-	for ( iZone = TimeZones:0 ; iZone < TimeZones ; iZone++ )
-	{
-		if ( iOffset == TimeZoneOffset[ iZone ] )
-			break;
-	}
-	
-	return ( TimeZone = iZone );
-}
-
-stock SecondsInMonth( const iYear , const iMonth ) 
-{
-	return ( ( IsLeapYear( iYear ) && ( iMonth == 2 ) ) ? ( MonthSeconds[iMonth - 1] + DaySeconds ) : MonthSeconds[iMonth - 1] );
-}
-
-stock IsLeapYear( const iYear ) 
-{
-	return ( ( (iYear % 4) == 0) && ( ( (iYear % 100) != 0) || ( (iYear % 400) == 0 ) ) );
 }
