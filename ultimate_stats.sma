@@ -13,7 +13,7 @@
 
 #define CSW_SHIELD          2
 
-#define MAX_WEAPONS         CSW_P90 + 1
+#define WEAPONS_END         CSW_P90 + 1
 #define HIT_END             HIT_RIGHTLEG + 1
 #define STATS_END           STATS_RANK + 1
 #define KILLER_END          KILLER_DISTANCE + 1
@@ -28,18 +28,20 @@
 #define rem_bit(%2,%1)      (%1 &= ~(1 <<(%2&31)))
 
 #define is_user_valid(%1)   (1 <= %1 <= MAX_PLAYERS)
-#define is_weapon_valid(%1) (0 < %1 < MAX_WEAPONS)
+#define is_weapon_valid(%1) (0 < %1 < WEAPONS_END)
 
 #define get_elo(%1,%2)      (1.0 / (1.0 + floatpower(10.0, ((%1 - %2) / 400.0))))
 #define set_elo(%1,%2,%3)   (%1 + 20.0 * (%2 - %3))
 
-#define stat(%1)            (%1 - HIT_END - 2)      
+#define stat(%1)            (%1 - HIT_END - 2)
 
 new const body[][] = { "cialo", "glowa", "klatka piersiowa", "brzuch", "lewe ramie", "prawe ramie", "lewa noga", "prawa noga" };
 
 // new const cmdStats[][] = { "stats", "say /stats", "say_team /stats" };
 // new const cmdScore[][] = { "score", "say /score", "say_team /score" };
 // new const cmdReport[][] = { "report", "say /report", "say_team /report" };
+// native add_user_kill(id, weapon = 0);
+// rename get_user_total_time to get_user_gametime
 
 enum _:cmds { CMD_MENU, CMD_HP, CMD_ME, CMD_STATSME, CMD_RANK, CMD_RANKSTATS, CMD_TOP15, CMD_TOPME, CMD_TIME, CMD_TIMEADMIN, CMD_TIMETOP15, CMD_STATS, CMD_STATSTOP15, CMD_MEDALS, CMD_MEDALSTOP15, CMD_SOUNDS };
 enum _:forwards { FORWARD_DAMAGE, FORWARD_DEATH, FORWARD_ASSIST, FORWARD_REVENGE, FORWARD_PLANTING, FORWARD_PLANTED, FORWARD_EXPLODE, FORWARD_DEFUSING, FORWARD_DEFUSED, FORWARD_THROW, FORWARD_LOADED };
@@ -49,8 +51,8 @@ enum _:winers { THIRD, SECOND, FIRST };
 enum _:save { NORMAL = -1, ROUND, FINAL, MAP_END };
 enum _:types { STATS, ROUND_STATS, WEAPON_STATS, WEAPON_ROUND_STATS, ATTACKER_STATS, VICTIM_STATS };
 enum _:formulas { FORMULA_KD, FORMULA_KILLS, FORMULA_KILLS_HS, FORMULA_ELO, FORMULA_TIME };
-enum _:playerData{ BOMB_DEFUSIONS = STATS_END, BOMB_DEFUSED, BOMB_PLANTED, BOMB_EXPLODED, ADMIN, SPECT, HUD_INFO, PLAYER_ID,  FIRST_VISIT, LAST_VISIT, TIME, CONNECTS, ASSISTS, REVENGE, REVENGES, ROUNDS, ROUNDS_CT, ROUNDS_T, WIN_CT, 
-	WIN_T, BRONZE, SILVER, GOLD, MEDALS, BEST_STATS, BEST_KILLS, BEST_DEATHS, BEST_HS, CURRENT_STATS, CURRENT_KILLS, CURRENT_DEATHS, CURRENT_HS, Float:ELO_RANK, NAME[32], SAFE_NAME[64], STEAMID[32], IP[16] };
+enum _:playerData{ BOMB_DEFUSIONS = STATS_END, BOMB_DEFUSED, BOMB_PLANTED, BOMB_EXPLODED, SPECT, HUD_INFO, PLAYER_ID,  FIRST_VISIT, LAST_VISIT, TIME, CONNECTS, ASSISTS, REVENGE, REVENGES, ROUNDS, ROUNDS_CT, ROUNDS_T, WIN_CT,
+	WIN_T, BRONZE, SILVER, GOLD, MEDALS, BEST_STATS, BEST_KILLS, BEST_DEATHS, BEST_HS, CURRENT_STATS, CURRENT_KILLS, CURRENT_DEATHS, CURRENT_HS, ADMIN, Float:ELO_RANK, NAME[32], SAFE_NAME[64], STEAMID[32], IP[16] };
 
 new const commands[cmds][][] = {
 	{ "cmd_menu", "\yMenu \rStatystyk", "menustaty", "say /menustaty", "say_team /menustaty", "say /statsmenu", "say_team /statsmenu", "say /statymenu", "say_team /statymenu", "", "" },
@@ -71,12 +73,12 @@ new const commands[cmds][][] = {
 	{ "cmd_sounds", "\wUstawienia \rDziekow", "dzwieki", "say /dzwiek", "say_team /dzwiek", "say /dzwieki", "say_team /dzwieki", "say /sound", "say_team /sound", "", "" },
 };
 
-new playerStats[MAX_PLAYERS + 1][playerData], playerRStats[MAX_PLAYERS + 1][playerData], playerWStats[MAX_PLAYERS + 1][MAX_WEAPONS][STATS_END], playerWRStats[MAX_PLAYERS + 1][MAX_WEAPONS][STATS_END], 
-	playerAStats[MAX_PLAYERS + 1][MAX_PLAYERS + 1][KILLER_END], playerVStats[MAX_PLAYERS + 1][MAX_PLAYERS + 1][KILLER_END], weaponsAmmo[MAX_PLAYERS + 1][MAX_WEAPONS], statsForwards[forwards], statsNum,
-	Handle:sql, Handle:connection, bool:sqlConnection, bool:oneAndOnly, bool:block, bool:mapChange, round, sounds, statsLoaded, weaponStatsLoaded, visit, soundMayTheForce, soundOneAndOnly, soundPrepare, 
-	soundHumiliation, soundLastLeft, ret, rankSaveType, rankFormula, weaponRankFormula, assistEnabled, revengeEnabled, assistMinDamage, assistMoney, revengeMoney, assistInfoEnabled, revengeInfoEnabled, 
-	leaderInfoEnabled, killerInfoEnabled, victimInfoEnabled, medalsEnabled, prefixEnabled, xvsxEnabled, soundsEnabled, hpEnabled, meEnabled, statsMeEnabled, rankEnabled, rankStatsEnabled, top15Enabled, 
-	topMeEnabled, spectRankEnabled, hsHudEnabled, victimHudEnabled, attackerHudEnabled, disruptiveHudEnabled, bestScoreHudEnabled, planter, defuser, hudSpectRank, hudEndRound;
+new playerStats[MAX_PLAYERS + 1][playerData], playerRStats[MAX_PLAYERS + 1][playerData], playerWStats[MAX_PLAYERS + 1][WEAPONS_END][STATS_END], playerWRStats[MAX_PLAYERS + 1][WEAPONS_END][STATS_END],
+	playerAStats[MAX_PLAYERS + 1][MAX_PLAYERS + 1][KILLER_END], playerVStats[MAX_PLAYERS + 1][MAX_PLAYERS + 1][KILLER_END], weaponsAmmo[MAX_PLAYERS + 1][WEAPONS_END], statsForwards[forwards], statsNum,
+	Handle:sql, Handle:connection, bool:sqlConnection, bool:oneAndOnly, bool:block, bool:mapChange, round, sounds, statsLoaded, weaponStatsLoaded, visit, soundMayTheForce, soundOneAndOnly, soundPrepare,
+	soundHumiliation, soundLastLeft, ret, rankSaveType, rankFormula, weaponRankFormula, assistEnabled, revengeEnabled, assistMinDamage, assistMoney, revengeMoney, assistInfoEnabled, revengeInfoEnabled,
+	leaderInfoEnabled, killerInfoEnabled, victimInfoEnabled, medalsEnabled, prefixEnabled, xvsxEnabled, soundsEnabled, hpEnabled, meEnabled, statsMeEnabled, rankEnabled, rankStatsEnabled, top15Enabled,
+	topMeEnabled, spectRankEnabled, victimHudEnabled, attackerHudEnabled, hsHudEnabled, disruptiveHudEnabled, bestScoreHudEnabled, planter, defuser, hudSpectRank, hudEndRound;
 
 public plugin_init()
 {
@@ -112,9 +114,9 @@ public plugin_init()
 	bind_pcvar_num(create_cvar("ultimate_stats_top15_enabled", "1"), top15Enabled);
 	bind_pcvar_num(create_cvar("ultimate_stats_topme_enabled", "1"), topMeEnabled);
 	bind_pcvar_num(create_cvar("ultimate_stats_spectrank_enabled", "1"), spectRankEnabled);
-	bind_pcvar_num(create_cvar("ultimate_stats_hs_hud_enabled", "1"), hsHudEnabled);
 	bind_pcvar_num(create_cvar("ultimate_stats_victim_hud_enabled", "1"), victimHudEnabled);
 	bind_pcvar_num(create_cvar("ultimate_stats_attacker_hud_enabled", "1"), attackerHudEnabled);
+	bind_pcvar_num(create_cvar("ultimate_stats_hs_hud_enabled", "1"), hsHudEnabled);
 	bind_pcvar_num(create_cvar("ultimate_stats_disruptive_hud_enabled", "1"), disruptiveHudEnabled);
 	bind_pcvar_num(create_cvar("ultimate_stats_bestscore_hud_enabled", "1"), bestScoreHudEnabled);
 
@@ -126,7 +128,7 @@ public plugin_init()
 
 	register_clcmd("say", "weapons_top15_handle");
 	register_clcmd("say_team", "weapons_top15_handle");
-	
+
 	statsForwards[FORWARD_DAMAGE] = CreateMultiForward("client_damage", ET_IGNORE, FP_CELL, FP_CELL, FP_CELL, FP_CELL, FP_CELL, FP_CELL);
 	statsForwards[FORWARD_DEATH] =  CreateMultiForward("client_death", ET_IGNORE, FP_CELL, FP_CELL, FP_CELL, FP_CELL, FP_CELL);
 	statsForwards[FORWARD_ASSIST] = CreateMultiForward("client_assist", ET_IGNORE, FP_CELL, FP_CELL, FP_CELL);
@@ -172,7 +174,7 @@ public plugin_init()
 
 public plugin_natives()
 {
-	register_library("csstats");
+	register_library("ultimatestats");
 
 	register_native("get_statsnum", "native_get_statsnum");
 	register_native("get_stats", "native_get_stats");
@@ -226,27 +228,20 @@ public client_connect(id)
 	rem_bit(id, soundHumiliation);
 	rem_bit(id, soundLastLeft);
 	rem_bit(id, soundPrepare);
-
 	rem_bit(id, statsLoaded);
 	rem_bit(id, weaponStatsLoaded);
 	rem_bit(id, visit);
 
 	if (is_user_bot(id) || is_user_hltv(id)) return;
 
-	get_user_name(id, playerStats[id][NAME], charsmax(playerStats[][NAME]));
-	get_user_authid(id, playerStats[id][STEAMID], charsmax(playerStats[][STEAMID]));
-	get_user_ip(id, playerStats[id][IP], charsmax(playerStats[][IP]), 1);
-
-	sql_safe_string(playerStats[id][NAME], playerStats[id][SAFE_NAME], charsmax(playerStats[][SAFE_NAME]));
-
-	set_task(random_float(0.1, 1.0), "load_stats", id);
+	set_task(random_float(0.1, 0.5), "load_stats", id);
 }
-
-public client_authorized(id)
-	playerStats[id][ADMIN] = get_user_flags(id) & ADMIN_BAN ? 1 : 0;
 
 public client_putinserver(id)
 	playerStats[id][CONNECTS]++;
+
+public client_authorized(id)
+	playerStats[id][ADMIN] = get_user_flags(id) & ADMIN_BAN ? 1 : 0;
 
 public client_disconnected(id)
 {
@@ -267,25 +262,25 @@ public check_time(id)
 	id -= TASK_TIME;
 
 	if (!get_bit(id, visit)) return;
-	
-	if (!get_bit(id, statsLoaded)) { 
+
+	if (!get_bit(id, statsLoaded)) {
 		set_task(3.0, "check_time", id + TASK_TIME);
 
 		return;
 	}
 
 	set_bit(id, visit);
-	
+
 	new time = get_systime(), visitYear, Year, visitMonth, Month, visitDay, Day, visitHour, visitMinutes, visitSeconds;
-	
+
 	UnixToTime(time, visitYear, visitMonth, visitDay, visitHour, visitMinutes, visitSeconds);
-	
+
 	client_print_color(id, id, "* Aktualnie jest godzina^x03 %02d:%02d:%02d (Data: %02d.%02d.%02d)^x01. *", visitHour, visitMinutes, visitSeconds, visitDay, visitMonth, visitYear);
-	
+
 	if (playerStats[id][FIRST_VISIT] == playerStats[id][LAST_VISIT]) client_print_color(id, id, "* To twoja^x04 pierwsza wizyta^x01 na serwerze. Zyczymy milej gry! *");
 	else {
 		UnixToTime(playerStats[id][LAST_VISIT], Year, Month, Day, visitHour, visitMinutes, visitSeconds);
-		
+
 		if (visitYear == Year && visitMonth == Month && visitDay == Day) client_print_color(id, id, "* Twoja ostatnia wizyta miala miejsce^x03 dzisiaj^x01 o^x03 %02d:%02d:%02d^x01. Zyczymy milej gry! *", visitHour, visitMinutes, visitSeconds);
 		else if (visitYear == Year && visitMonth == Month && (visitDay - 1) == Day) client_print_color(id, id, "* Twoja ostatnia wizyta miala miejsce^x03 wczoraj^x01 o^x03 %02d:%02d:%02d^x01. Zyczymy milej gry! *", visitHour, visitMinutes, visitSeconds);
 		else client_print_color(id, id, "* Twoja ostatnia wizyta:^x03 %02d:%02d:%02d (Data: %02d.%02d.%02d)^x01. Zyczymy milej gry! *", visitHour, visitMinutes, visitSeconds, Day, Month, Year);
@@ -385,7 +380,7 @@ public planted_bomb()
 	planter = get_loguser_index();
 
 	playerStats[planter][BOMB_PLANTED]++;
-	
+
 	ExecuteForward(statsForwards[FORWARD_PLANTED], ret, planter);
 
 	if (!soundsEnabled) return;
@@ -430,10 +425,10 @@ public explode_bomb()
 public cur_weapon(id)
 {
 	static weapon, ammo;
-	
+
 	weapon = read_data(2);
 	ammo = read_data(3);
-	
+
 	if (weaponsAmmo[id][weapon] != ammo) {
 		if (weaponsAmmo[id][weapon] > ammo) {
 			playerStats[id][STATS_SHOTS]++;
@@ -579,13 +574,13 @@ public death(killer, victim, weapon, hitPlace, teamKill)
 
 		if (killerInfoEnabled) client_print_color(killer, victim, "* Zabiles^x03 %s^x01. *", playerStats[victim][NAME]);
 		if (victimInfoEnabled) client_print_color(victim, killer, "* Zostales zabity przez^x03 %s^x01, ktoremu zostalo^x04 %i^x01 HP. *", playerStats[killer][NAME], get_user_health(killer));
-		
+
 		if (assistEnabled) {
 			new assistKiller, assistDamage;
 
 			for (new i = 1; i <= MAX_PLAYERS; i++) {
 				if(!is_user_connected(i) || i == killer || i == victim) continue;
-				
+
 				if(playerAStats[victim][i][STATS_DAMAGE] >= assistMinDamage && playerAStats[victim][i][STATS_DAMAGE] > assistDamage) {
 					assistKiller = i;
 					assistDamage = playerAStats[victim][i][STATS_DAMAGE];
@@ -618,7 +613,7 @@ public death(killer, victim, weapon, hitPlace, teamKill)
 					write_byte(1);
 					message_end();
 				}
-				
+
 				if (assistInfoEnabled) client_print_color(assistKiller, killer, "* Pomogles^x04 %s^x01 w zabiciu^x04 %s^x01. *", playerStats[killer][NAME], playerStats[victim][NAME]);
 			}
 		}
@@ -651,7 +646,7 @@ public death(killer, victim, weapon, hitPlace, teamKill)
 				write_byte(1);
 				message_end();
 			}
-			
+
 			if (revengeInfoEnabled) client_print_color(killer, victim, "* Zemsciles sie zabijajac^x04 %s^x01. *", playerStats[victim][NAME]);
 		}
 	}
@@ -685,7 +680,7 @@ public death(killer, victim, weapon, hitPlace, teamKill)
 			}
 		}
 	}
-	
+
 	if (tCount == 1 && ctCount == 1) {
 		if (soundsEnabled) {
 			for (new i = 1; i <= MAX_PLAYERS; i++) {
@@ -729,7 +724,7 @@ public death(killer, victim, weapon, hitPlace, teamKill)
 		if (!oneAndOnly && soundsEnabled) {
 			for (new i = 1; i <= MAX_PLAYERS; i++) {
 				if (!is_user_connected(i)) continue;
-				
+
 				if (((is_user_alive(i) && get_user_team(i) == 1) || (!is_user_alive(i) && pev(i, pev_iuser2) != lastCT)) && get_bit(i, soundLastLeft)) client_cmd(i, "spk misc/lastleft");
 
 				if ((pev(i, pev_iuser2) == lastCT || i == lastCT) && get_bit(i, soundOneAndOnly)) client_cmd(i, "spk misc/oneandonly");
@@ -747,7 +742,7 @@ public death(killer, victim, weapon, hitPlace, teamKill)
 
 public win_t()
 	round_winner(1);
-	
+
 public win_ct()
 	round_winner(2);
 
@@ -763,7 +758,7 @@ public round_winner(team)
 public set_model(ent, model[])
 {
 	static className[32], id, weapon; id = pev(ent, pev_owner);
-			
+
 	if (!is_user_connected(id)) return FMRES_IGNORED;
 
 	pev(ent, pev_classname, className, charsmax(className));
@@ -777,11 +772,11 @@ public set_model(ent, model[])
 	}
 
 	ExecuteForward(statsForwards[FORWARD_THROW], ret, id, ent, weapon);
-	
+
 	return FMRES_IGNORED;
 }
 
-public message_intermission() 
+public message_intermission()
 {
 	mapChange = true;
 
@@ -790,13 +785,13 @@ public message_intermission()
 
 		for (new id = 1; id <= MAX_PLAYERS; id++) {
 			if (!is_user_connected(id) || is_user_hltv(id) || is_user_bot(id)) continue;
-			
+
 			tempFrags = get_user_frags(id);
-			
+
 			if (tempFrags > winnersFrags[THIRD]) {
 				winnersFrags[THIRD] = tempFrags;
 				winnersId[THIRD] = id;
-				
+
 				if (tempFrags > winnersFrags[SECOND]) {
 					swapFrags = winnersFrags[SECOND];
 					swapId = winnersId[SECOND];
@@ -804,7 +799,7 @@ public message_intermission()
 					winnersId[SECOND] = id;
 					winnersFrags[THIRD] = swapFrags;
 					winnersId[THIRD] = swapId;
-					
+
 					if (tempFrags > winnersFrags[FIRST]) {
 						swapFrags = winnersFrags[FIRST];
 						swapId = winnersId[FIRST];
@@ -816,13 +811,13 @@ public message_intermission()
 				}
 			}
 		}
-		
+
 		if (!winnersId[FIRST]) return PLUGIN_CONTINUE;
 
 		new const medals[][] = { "Brazowy", "Srebrny", "Zloty" };
 
 		client_print_color(0, 0, "* Gratulacje dla^x03 Najlepszych Graczy^x01! *");
-		
+
 		for (new i = 2; i >= 0; i--) {
 			switch(i) {
 				case THIRD: playerStats[winnersId[i]][BRONZE]++;
@@ -831,16 +826,16 @@ public message_intermission()
 			}
 
 			save_stats(winnersId[i], FINAL);
-			
+
 			get_user_name(winnersId[i], playerName, charsmax(playerName));
 
 			client_print_color(0, 0, "* ^x03 %s^x01 -^x03 %i^x01 Zabojstw - %s Medal. *", playerName, winnersFrags[i], medals[i]);
 		}
 	}
-	
+
 	for (new id = 1; id <= MAX_PLAYERS; id++) {
 		if (!is_user_connected(id) || is_user_hltv(id) || is_user_bot(id)) continue;
-		
+
 		save_stats(id, FINAL);
 	}
 
@@ -850,14 +845,14 @@ public message_intermission()
 public say_text(msgId, msgDest, msgEnt)
 {
 	new id = get_msg_arg_int(1);
-	
+
 	if (is_user_connected(id)) {
 		static tempMessage[192], message[192], chatPrefix[16];
-		
+
 		get_msg_arg_string(2, tempMessage, charsmax(tempMessage));
 
 		if (playerStats[id][STATS_RANK] > 3 || !prefixEnabled) return PLUGIN_CONTINUE;
-			
+
 		switch (playerStats[id][STATS_RANK]) {
 			case 1: formatex(chatPrefix, charsmax(chatPrefix), "^x04[TOP1]");
 			case 2: formatex(chatPrefix, charsmax(chatPrefix), "^x04[TOP2]");
@@ -869,16 +864,16 @@ public say_text(msgId, msgDest, msgEnt)
 			add(message, charsmax(message), " ");
 			add(message, charsmax(message), tempMessage);
 		} else {
-	        get_msg_arg_string(4, tempMessage, charsmax(tempMessage)); 
+	        get_msg_arg_string(4, tempMessage, charsmax(tempMessage));
 	        set_msg_arg_string(4, "");
-	    
+
 	        add(message, charsmax(message), chatPrefix);
 	        add(message, charsmax(message), "^x03 ");
 	        add(message, charsmax(message), playerStats[id][NAME]);
 	        add(message, charsmax(message), "^x01 :  ");
 	        add(message, charsmax(message), tempMessage);
 		}
-		
+
 		set_msg_arg_string(2, message);
 	}
 
@@ -905,7 +900,7 @@ public show_hud_info(start)
 		}
 
 		if (disruptiveId) {
-			formatex(hudTemp, charsmax(hudTemp), "Najwiecej obrazen: %s^n%d trafien / %d obrazen -- %0.2f%% efe. / %0.2f%% cel.^n", playerStats[disruptiveId][NAME], disruptiveHits, disruptiveDamage, 
+			formatex(hudTemp, charsmax(hudTemp), "Najwiecej obrazen: %s^n%d trafien / %d obrazen -- %0.2f%% efe. / %0.2f%% cel.^n", playerStats[disruptiveId][NAME], disruptiveHits, disruptiveDamage,
 				effec(playerRStats[disruptiveId][STATS_KILLS], playerRStats[disruptiveId][STATS_DEATHS]), accuracy(playerRStats[disruptiveId][STATS_SHOTS], playerRStats[disruptiveId][STATS_HITS]));
 
 			add(hudInfo, charsmax(hudInfo), hudTemp);
@@ -974,11 +969,13 @@ public show_user_hud_info(id, start)
 			copy_stats(id, stats, sizeof(stats), HIT_END, VICTIM_STATS, _, player);
 
 			if (stats[stat(STATS_DEATHS)]) {
-				get_weaponname(stats[stat(STATS_RANK)], weaponName, charsmax(weaponName));
+				if (stats[stat(STATS_RANK)] > 0) {
+					get_weaponname(stats[stat(STATS_RANK)], weaponName, charsmax(weaponName));
 
-				replace_all(weaponName, charsmax(weaponName), "weapon_", "");
+					replace_all(weaponName, charsmax(weaponName), "weapon_", "");
 
-				length += formatex(hudInfo[length], charsmax(hudInfo) - length, "%s -- %d trafien / %d obrazen / %s%s^n", playerStats[player][NAME], stats[stat(STATS_HITS)], stats[stat(STATS_DAMAGE)], weaponName, (stats[stat(STATS_HS)] && hsHudEnabled) ? " / hs" : "");
+					length += formatex(hudInfo[length], charsmax(hudInfo) - length, "%s -- %d trafien / %d obrazen / %s%s^n", playerStats[player][NAME], stats[stat(STATS_HITS)], stats[stat(STATS_DAMAGE)], weaponName, (stats[stat(STATS_HS)] && hsHudEnabled) ? " / hs" : "");
+				} else length += formatex(hudInfo[length], charsmax(hudInfo) - length, "%s -- %d trafien / %d obrazen%s^n", playerStats[player][NAME], stats[stat(STATS_HITS)], stats[stat(STATS_DAMAGE)], (stats[stat(STATS_HS)] && hsHudEnabled) ? " / hs" : "");
 			} else length += formatex(hudInfo[length], charsmax(hudInfo) - length, "%s -- %d trafien / %d obrazen^n", playerStats[player][NAME], stats[stat(STATS_HITS)], stats[stat(STATS_DAMAGE)]);
 		}
 
@@ -1007,11 +1004,13 @@ public show_user_hud_info(id, start)
 			copy_stats(id, stats, sizeof(stats), HIT_END, ATTACKER_STATS, _, player);
 
 			if (stats[stat(STATS_KILLS)]) {
-				get_weaponname(stats[stat(STATS_RANK)], weaponName, charsmax(weaponName));
+				if (stats[stat(STATS_RANK)] > 0) {
+					get_weaponname(stats[stat(STATS_RANK)], weaponName, charsmax(weaponName));
 
-				replace_all(weaponName, charsmax(weaponName), "weapon_", "");
+					replace_all(weaponName, charsmax(weaponName), "weapon_", "");
 
-				length += formatex(hudInfo[length], charsmax(hudInfo) - length, "%s -- %d trafien / %d obrazen / %s%s^n", playerStats[player][NAME], stats[stat(STATS_HITS)], stats[stat(STATS_DAMAGE)], weaponName, (stats[stat(STATS_HS)] && hsHudEnabled) ? " / hs" : "");
+					length += formatex(hudInfo[length], charsmax(hudInfo) - length, "%s -- %d trafien / %d obrazen / %s%s^n", playerStats[player][NAME], stats[stat(STATS_HITS)], stats[stat(STATS_DAMAGE)], weaponName, (stats[stat(STATS_HS)] && hsHudEnabled) ? " / hs" : "");
+				} else length += formatex(hudInfo[length], charsmax(hudInfo) - length, "%s -- %d trafien / %d obrazen%s^n", playerStats[player][NAME], stats[stat(STATS_HITS)], stats[stat(STATS_DAMAGE)], (stats[stat(STATS_HS)] && hsHudEnabled) ? " / hs" : "");
 			} else length += formatex(hudInfo[length], charsmax(hudInfo) - length, "%s -- %d trafien / %d obrazen^n", playerStats[player][NAME], stats[stat(STATS_HITS)], stats[stat(STATS_DAMAGE)]);
 		}
 
@@ -1036,7 +1035,7 @@ public cmd_menu(id)
 		menu_additem(menu, menuData, commands[i][2]);
 	}
 
-	for (new i = 1; i < MAX_WEAPONS; i++) {
+	for (new i = 1; i < WEAPONS_END; i++) {
 		if (i == CSW_SHIELD || i == CSW_C4 || i == CSW_FLASHBANG || i == CSW_SMOKEGRENADE) continue;
 
 		get_weaponname(i, weaponName, charsmax(weaponName));
@@ -1064,7 +1063,7 @@ public cmd_menu(id)
 public cmd_menu_handle(id, menu, item)
 {
 	if (!is_user_connected(id)) return PLUGIN_HANDLED;
-	
+
 	if (item == MENU_EXIT) {
 		menu_destroy(menu);
 
@@ -1074,7 +1073,7 @@ public cmd_menu_handle(id, menu, item)
 	new itemData[32], itemAccess, menuCallback;
 
 	menu_item_getinfo(menu, item, itemAccess, itemData, charsmax(itemData), _, _, menuCallback);
-	
+
 	cmd_execute(id, itemData);
 
 	menu_destroy(menu);
@@ -1096,11 +1095,13 @@ public cmd_hp(id)
 		copy_stats(id, hits, sizeof(hits), _, ATTACKER_STATS, _, killer);
 		copy_stats(id, stats, sizeof(stats), HIT_END, ATTACKER_STATS, _, killer);
 
-		get_weaponname(stats[stat(STATS_RANK)], weaponName, charsmax(weaponName));
+		if (stats[stat(STATS_RANK)] > 0) {
+			get_weaponname(stats[stat(STATS_RANK)], weaponName, charsmax(weaponName));
 
-		replace_all(weaponName, charsmax(weaponName), "weapon_", "");
+			replace_all(weaponName, charsmax(weaponName), "weapon_", "");
 
-		length = formatex(message, charsmax(message), "Zabity przez^x03 %s^x01 z %s z odleglosci %0.0fm (^x04 %d HP^x01,^x04 %d AP^x01). Szczegoly: ", playerStats[killer][NAME], weaponName, distance(playerAStats[id][0][KILLER_DISTANCE]), playerAStats[id][0][KILLER_HEALTH], playerAStats[id][0][KILLER_ARMOR]);
+			length = formatex(message, charsmax(message), "Zabity przez^x03 %s^x01 z %s z odleglosci %0.0fm (^x04 %d HP^x01,^x04 %d AP^x01). Szczegoly: ", playerStats[killer][NAME], weaponName, distance(playerAStats[id][0][KILLER_DISTANCE]), playerAStats[id][0][KILLER_HEALTH], playerAStats[id][0][KILLER_ARMOR]);
+		} else length = formatex(message, charsmax(message), "Zabity przez^x03 %s^x01 z odleglosci %0.0fm (^x04 %d HP^x01,^x04 %d AP^x01). Szczegoly: ", playerStats[killer][NAME], distance(playerAStats[id][0][KILLER_DISTANCE]), playerAStats[id][0][KILLER_HEALTH], playerAStats[id][0][KILLER_ARMOR]);
 
 		if (stats[stat(STATS_HITS)]) {
 			for (new i = 1, hit = 0; i < sizeof(hits); i++) {
@@ -1162,19 +1163,19 @@ public cmd_statsme(id, player)
 
 	motdLength = formatex(motdData, charsmax(motdData), "<meta charset=utf-8><body bgcolor=#000000><font color=#FFB000><pre>");
 
-	motdLength += formatex(motdData[motdLength], charsmax(motdData) - motdLength, "%16s: %d (%d z HS)^n%16s: %d^n%16s: %d^n%16s: %d^n%16s: %d^n%16s: %0.2f%%^n%16s: %0.2f%%^n^n", "Zabojstwa", playerStats[target][STATS_KILLS], playerStats[target][STATS_HS], "Zgony", playerStats[target][STATS_DEATHS], "Trafienia", 
+	motdLength += formatex(motdData[motdLength], charsmax(motdData) - motdLength, "%16s: %d (%d z HS)^n%16s: %d^n%16s: %d^n%16s: %d^n%16s: %d^n%16s: %0.2f%%^n%16s: %0.2f%%^n^n", "Zabojstwa", playerStats[target][STATS_KILLS], playerStats[target][STATS_HS], "Zgony", playerStats[target][STATS_DEATHS], "Trafienia",
 		playerStats[target][STATS_HITS], "Strzaly", playerStats[target][STATS_SHOTS], "Obrazenia", playerStats[target][STATS_DAMAGE], "Efektywnosc", effec(playerStats[target][STATS_KILLS], playerStats[target][STATS_DEATHS]), "Celnosc", accuracy(playerStats[target][STATS_SHOTS], playerStats[target][STATS_HITS]));
 
 	motdLength += format(motdData[motdLength], charsmax(motdData) - motdLength, "%8s %6s %7s %2s %6s %4s %4s %4s^n", "Bron", "Zabojstwa", "Zgony", "HS", "Trafienia", "Strzaly", "Efe.", "Cel.");
 
-	for (new i = 1; i < MAX_WEAPONS; i++) {
+	for (new i = 1; i < WEAPONS_END; i++) {
 		if ((i == CSW_SHIELD || i == CSW_C4 || i == CSW_FLASHBANG || i == CSW_SMOKEGRENADE) || (!playerWStats[target][i][STATS_SHOTS] && !playerWStats[target][i][STATS_DEATHS])) continue;
 
 		get_weaponname(i, weaponName, charsmax(weaponName));
 
 		replace_all(weaponName, charsmax(weaponName), "weapon_", "");
 
-		motdLength += format(motdData[motdLength], charsmax(motdData) - motdLength, "%8s %6d %6d %5d %7d %9d %3.0f%% %3.0f%%^n", weaponName, playerWStats[target][i][STATS_KILLS], playerWStats[target][i][STATS_DEATHS], playerWStats[target][i][STATS_HS], 
+		motdLength += format(motdData[motdLength], charsmax(motdData) - motdLength, "%8s %6d %6d %5d %7d %9d %3.0f%% %3.0f%%^n", weaponName, playerWStats[target][i][STATS_KILLS], playerWStats[target][i][STATS_DEATHS], playerWStats[target][i][STATS_HS],
 			playerWStats[target][i][STATS_HITS], playerWStats[target][i][STATS_SHOTS], effec(playerWStats[target][i][STATS_KILLS], playerWStats[target][i][STATS_DEATHS]), accuracy(playerWStats[target][i][STATS_SHOTS], playerWStats[target][i][STATS_HITS]));
 	}
 
@@ -1208,10 +1209,10 @@ public cmd_rankstats(id, player)
 	if (player) motdLength += formatex(motdData[motdLength], charsmax(motdData) - motdLength, "Ranking gracza %s wynosi %i na %i^n^n", playerStats[target][NAME], playerStats[target][STATS_RANK], statsNum);
 	else motdLength += formatex(motdData[motdLength], charsmax(motdData) - motdLength, "Twoj ranking wynosi %i na %i^n^n", playerStats[target][STATS_RANK], statsNum);
 
-	motdLength += formatex(motdData[motdLength], charsmax(motdData) - motdLength, "%16s: %d (%d z HS)^n%16s: %d^n%16s: %d^n%16s: %d^n%16s: %d^n%16s: %0.2f%%^n%16s: %0.2f%%^n^n", "Zabojstwa", playerStats[target][STATS_KILLS], playerStats[target][STATS_HS], "Zgony", playerStats[target][STATS_DEATHS], "Trafienia", 
+	motdLength += formatex(motdData[motdLength], charsmax(motdData) - motdLength, "%16s: %d (%d z HS)^n%16s: %d^n%16s: %d^n%16s: %d^n%16s: %d^n%16s: %0.2f%%^n%16s: %0.2f%%^n^n", "Zabojstwa", playerStats[target][STATS_KILLS], playerStats[target][STATS_HS], "Zgony", playerStats[target][STATS_DEATHS], "Trafienia",
 		playerStats[target][STATS_HITS], "Strzaly", playerStats[target][STATS_SHOTS], "Obrazenia", playerStats[target][STATS_DAMAGE], "Efektywnosc", effec(playerStats[target][STATS_KILLS], playerStats[target][STATS_DEATHS]), "Celnosc", accuracy(playerStats[target][STATS_SHOTS], playerStats[target][STATS_HITS]));
 
-	motdLength += formatex(motdData[motdLength], charsmax(motdData) - motdLength, "TRAFIENIA^n%16s: %d^n%16s: %d^n%16s: %d^n%16s: %d^n%16s: %d^n%16s: %d^n%16s: %d", body[HIT_HEAD], playerStats[target][HIT_HEAD], body[HIT_CHEST], playerStats[target][HIT_CHEST], 
+	motdLength += formatex(motdData[motdLength], charsmax(motdData) - motdLength, "TRAFIENIA^n%16s: %d^n%16s: %d^n%16s: %d^n%16s: %d^n%16s: %d^n%16s: %d^n%16s: %d", body[HIT_HEAD], playerStats[target][HIT_HEAD], body[HIT_CHEST], playerStats[target][HIT_CHEST],
 		body[HIT_STOMACH], playerStats[target][HIT_STOMACH], body[HIT_LEFTARM], playerStats[target][HIT_LEFTARM], body[HIT_RIGHTARM], playerStats[target][HIT_RIGHTARM], body[HIT_LEFTLEG], playerStats[target][HIT_LEFTLEG], body[HIT_RIGHTLEG], playerStats[target][HIT_RIGHTLEG]);
 
 	show_motd(id, motdData, playerStats[target][NAME]);
@@ -1226,7 +1227,7 @@ public cmd_top15(id)
 	new queryData[256], queryTemp[96], playerId[1];
 
 	playerId[0] = id;
-	
+
 	get_rank_formula(queryTemp, charsmax(queryTemp), 0);
 
 	formatex(queryData, charsmax(queryData), "SELECT a.name, a.kills, a.deaths, a.hs_kills, a.shots, a.hits, a.elo_rank FROM `ultimate_stats` a ORDER BY %s LIMIT 15", queryTemp);
@@ -1240,16 +1241,16 @@ public show_top15(failState, Handle:query, error[], errorNum, playerId[], dataSi
 {
 	if (failState) {
 		log_to_file("ultimate_stats.log", "Top15 SQL Error: %s (%d)", error, errorNum);
-		
+
 		return PLUGIN_HANDLED;
 	}
 
 	static motdData[2048], name[32], Float:elo, motdLength, place, kills, deaths, hs, shots, hits;
 
 	motdLength = 0, place = 0;
-	
+
 	new id = playerId[0];
-	
+
 	motdLength = format(motdData, charsmax(motdData), "<body bgcolor=#000000><font color=#FFB000><pre>");
 
 	if (rankFormula == FORMULA_ELO) motdLength += format(motdData[motdLength], charsmax(motdData) - motdLength, "%2s %-22.22s %4s %5s %7s %2s %6s %4s %4s %4s^n", "#", "Nick", "Skill", "Zabojstwa", "Zgony", "HS", "Trafienia", "Strzaly", "Efe.", "Cel.");
@@ -1274,12 +1275,12 @@ public show_top15(failState, Handle:query, error[], errorNum, playerId[], dataSi
 
 			motdLength += format(motdData[motdLength], charsmax(motdData) - motdLength, "%2d %-22.22s %4.2f %6d %7d %6d %7d %7d %3.0f%% %3.0f%%^n", place, name, elo, kills, deaths, hs, hits, shots, effec(kills, deaths), accuracy(shots, hits));
 		} else motdLength += format(motdData[motdLength], charsmax(motdData) - motdLength, "%2d %-22.22s %6d %7d %6d %7d %7d %3.0f%% %3.0f%%^n", place, name, kills, deaths, hs, hits, shots, effec(kills, deaths), accuracy(shots, hits));
-		
+
 		SQL_NextRow(query);
 	}
-	
+
 	show_motd(id, motdData, "Top15");
-	
+
 	return PLUGIN_HANDLED;
 }
 
@@ -1294,7 +1295,7 @@ public cmd_topme(id)
 
 	playerId[0] = id;
 	playerId[1] = start;
-	
+
 	get_rank_formula(queryTemp, charsmax(queryTemp), 0);
 
 	formatex(queryData, charsmax(queryData), "SELECT a.name, a.kills, a.deaths, a.hs_kills, a.shots, a.hits, a.elo_rank FROM `ultimate_stats` a ORDER BY %s LIMIT %i, 15", queryTemp, start);
@@ -1308,16 +1309,16 @@ public show_topme(failState, Handle:query, error[], errorNum, playerId[], dataSi
 {
 	if (failState) {
 		log_to_file("ultimate_stats.log", "TopMe SQL Error: %s (%d)", error, errorNum);
-		
+
 		return PLUGIN_HANDLED;
 	}
 
 	static motdData[2048], name[32], Float:elo, motdLength, kills, deaths, hs, shots, hits;
 
 	motdLength = 0;
-	
+
 	new id = playerId[0], place = playerId[1];
-	
+
 	motdLength = format(motdData, charsmax(motdData), "<body bgcolor=#000000><font color=#FFB000><pre>");
 
 	if (rankFormula == FORMULA_ELO) motdLength += format(motdData[motdLength], charsmax(motdData) - motdLength, "%2s %-22.22s %4s %5s %7s %2s %6s %4s %4s %4s^n", "#", "Nick", "Skill", "Zabojstwa", "Zgony", "HS", "Trafienia", "Strzaly", "Efe.", "Cel.");
@@ -1342,12 +1343,12 @@ public show_topme(failState, Handle:query, error[], errorNum, playerId[], dataSi
 
 			motdLength += format(motdData[motdLength], charsmax(motdData) - motdLength, "%2d %-22.22s %4.2f %6d %7d %6d %7d %7d %3.0f%% %3.0f%%^n", place, name, elo, kills, deaths, hs, hits, shots, effec(kills, deaths), accuracy(shots, hits));
 		} else motdLength += format(motdData[motdLength], charsmax(motdData) - motdLength, "%2d %-22.22s %6d %7d %6d %7d %7d %3.0f%% %3.0f%%^n", place, name, kills, deaths, hs, hits, shots, effec(kills, deaths), accuracy(shots, hits));
-		
+
 		SQL_NextRow(query);
 	}
-	
+
 	show_motd(id, motdData, "Top15");
-	
+
 	return PLUGIN_HANDLED;
 }
 
@@ -1359,7 +1360,7 @@ public cmd_weapon_top15(id, weapon)
 
 	playerId[0] = id;
 	playerId[1] = weapon;
-	
+
 	if(weapon == CSW_KNIFE) formatex(queryData, charsmax(queryData), "SELECT a.name, b.kills, b.hs_kills FROM `ultimate_stats` a JOIN `ultimate_stats_weapons` b ON a.id = b.player_id WHERE b.weapon = 'weapon_knife' ORDER BY b.kills DESC, b.hs_kills DESC LIMIT 15");
 	else if(weapon == CSW_HEGRENADE) formatex(queryData, charsmax(queryData), "SELECT a.name, b.kills FROM `ultimate_stats` a JOIN `ultimate_stats_weapons` b ON a.id = b.player_id WHERE b.weapon = 'weapon_hegrenade' ORDER BY b.kills DESC LIMIT 15");
 	else {
@@ -1379,14 +1380,14 @@ public show_weapon_top15(failState, Handle:query, error[], errorNum, playerId[],
 {
 	if (failState) {
 		log_to_file("ultimate_stats.log", "Weapon Top15 SQL Error: %s (%d)", error, errorNum);
-		
+
 		return PLUGIN_HANDLED;
 	}
 
 	static motdData[2048], topName[64], name[32], motdLength, place, kills, deaths, hs, shots, hits;
 
 	motdLength = 0, place = 0;
-	
+
 	new id = playerId[0], weapon = playerId[1];
 
 	get_weaponname(weapon, topName, charsmax(topName));
@@ -1396,7 +1397,7 @@ public show_weapon_top15(failState, Handle:query, error[], errorNum, playerId[],
 	ucfirst(topName);
 
 	add(topName, charsmax(topName), " Top15");
-	
+
 	motdLength = format(motdData, charsmax(motdData), "<body bgcolor=#000000><font color=#FFB000><pre>");
 
 	if(weapon == CSW_KNIFE) {
@@ -1412,9 +1413,9 @@ public show_weapon_top15(failState, Handle:query, error[], errorNum, playerId[],
 
 			kills = SQL_ReadResult(query, 1);
 			hs = SQL_ReadResult(query, 2);
-			
+
 			motdLength += format(motdData[motdLength], charsmax(motdData) - motdLength, "%2i %-22.22s %5d %7d^n", place, name, kills, hs);
-			
+
 			SQL_NextRow(query);
 		}
 	} else if(weapon == CSW_HEGRENADE) {
@@ -1429,9 +1430,9 @@ public show_weapon_top15(failState, Handle:query, error[], errorNum, playerId[],
 			replace_all(name, charsmax(name), ">", "");
 
 			kills = SQL_ReadResult(query, 1);
-			
+
 			motdLength += format(motdData[motdLength], charsmax(motdData) - motdLength, "%2i %-22.22s %6d^n", place, name, kills);
-			
+
 			SQL_NextRow(query);
 		}
 	} else {
@@ -1450,15 +1451,15 @@ public show_weapon_top15(failState, Handle:query, error[], errorNum, playerId[],
 			hs = SQL_ReadResult(query, 3);
 			shots = SQL_ReadResult(query, 4);
 			hits = SQL_ReadResult(query, 5);
-			
+
 			motdLength += format(motdData[motdLength], charsmax(motdData) - motdLength, "%2d %-22.22s %6d %7d %6d %7d %7d %3.0f%% %3.0f%%^n", place, name, kills, deaths, hs, hits, shots, effec(kills, deaths), accuracy(shots, hits));
-			
+
 			SQL_NextRow(query);
 		}
 	}
-	
+
 	show_motd(id, motdData, topName);
-	
+
 	return PLUGIN_HANDLED;
 }
 
@@ -1467,7 +1468,7 @@ public cmd_time(id)
 	new queryData[192], playerId[1];
 
 	playerId[0] = id;
-	
+
 	formatex(queryData, charsmax(queryData), "SELECT `rank`, `all` FROM (SELECT COUNT(*) AS `all` FROM `ultimate_stats`) a JOIN (SELECT COUNT(*) + 1 AS `rank` FROM `ultimate_stats` WHERE time > %i ORDER BY time DESC) b", playerStats[id][TIME] + get_user_time(id));
 
 	SQL_ThreadQuery(sql, "show_time", queryData, playerId, sizeof(playerId));
@@ -1479,12 +1480,12 @@ public show_time(failState, Handle:query, error[], errorNum, playerId[], dataSiz
 {
 	if (failState) {
 		log_to_file("ultimate_stats.log", "Time SQL Error: %s (%d)", error, errorNum);
-		
+
 		return PLUGIN_HANDLED;
 	}
-	
+
 	new id = playerId[0], rank = SQL_ReadResult(query, 0), players = SQL_ReadResult(query, 1), seconds = (playerStats[id][TIME] + get_user_time(id)), minutes, hours;
-	
+
 	while (seconds >= 60) {
 		seconds -= 60;
 		minutes++;
@@ -1494,7 +1495,7 @@ public show_time(failState, Handle:query, error[], errorNum, playerId[], dataSiz
 		minutes -= 60;
 		hours++;
 	}
-	
+
 	client_print_color(id, id, "* Spedziles na serwerze lacznie^x04 %i h %i min %i s^x01. *", hours, minutes, seconds);
 	client_print_color(id, id, "* Zajmujesz^x03 %i^x01 na^x03 %i^x01 miejsce w rankingu czasu gry. *", rank, players);
 
@@ -1508,7 +1509,7 @@ public cmd_time_admin(id)
 	new queryData[128], playerId[1];
 
 	playerId[0] = id;
-	
+
 	formatex(queryData, charsmax(queryData), "SELECT name, time FROM `ultimate_stats` WHERE admin = 1 ORDER BY time DESC");
 
 	SQL_ThreadQuery(sql, "show_time_admin", queryData, playerId, sizeof(playerId));
@@ -1518,19 +1519,19 @@ public show_time_admin(failState, Handle:query, error[], errorNum, playerId[], d
 {
 	if (failState) {
 		log_to_file("ultimate_stats.log", "Time Admin SQL Error: %s (%d)", error, errorNum);
-		
+
 		return PLUGIN_HANDLED;
 	}
 
 	static motdData[2048], name[32], motdLength, place, seconds, minutes, hours;
 
 	motdLength = 0, place = 0;
-	
+
 	new id = playerId[0];
-	
+
 	motdLength = format(motdData, charsmax(motdData), "<body bgcolor=#000000><font color=#FFB000><pre>");
 	motdLength += format(motdData[motdLength], charsmax(motdData) - motdLength, "%2s %-22.22s %9s^n", "#", "Nick", "Czas Gry");
-	
+
 	while (SQL_MoreResults(query)) {
 		place++;
 
@@ -1542,7 +1543,7 @@ public show_time_admin(failState, Handle:query, error[], errorNum, playerId[], d
 		seconds = SQL_ReadResult(query, 1);
 		minutes = 0;
 		hours = 0;
-		
+
 		while (seconds >= 60) {
 			seconds -= 60;
 			minutes++;
@@ -1552,14 +1553,14 @@ public show_time_admin(failState, Handle:query, error[], errorNum, playerId[], d
 			minutes -= 60;
 			hours++;
 		}
-		
+
 		motdLength += format(motdData[motdLength], charsmax(motdData) - motdLength, "%2i %-22.22s %0ih %1imin %1is^n", place, name, hours, minutes, seconds);
-		
+
 		SQL_NextRow(query);
 	}
-	
+
 	show_motd(id, motdData, "Czas Gry Adminow");
-	
+
 	return PLUGIN_HANDLED;
 }
 
@@ -1568,7 +1569,7 @@ public cmd_time_top15(id)
 	new queryData[128], playerId[1];
 
 	playerId[0] = id;
-	
+
 	formatex(queryData, charsmax(queryData), "SELECT name, time FROM `ultimate_stats` ORDER BY time DESC LIMIT 15");
 
 	SQL_ThreadQuery(sql, "show_time_top15", queryData, playerId, sizeof(playerId));
@@ -1578,19 +1579,19 @@ public show_time_top15(failState, Handle:query, error[], errorNum, playerId[], d
 {
 	if (failState) {
 		log_to_file("ultimate_stats.log", "Time Top15 SQL Error: %s (%d)", error, errorNum);
-		
+
 		return PLUGIN_HANDLED;
 	}
 
 	static motdData[2048], name[32], motdLength, place, seconds, minutes, hours;
 
 	motdLength = 0, place = 0;
-	
+
 	new id = playerId[0];
-	
+
 	motdLength = format(motdData, charsmax(motdData), "<body bgcolor=#000000><font color=#FFB000><pre>");
 	motdLength += format(motdData[motdLength], charsmax(motdData) - motdLength, "%2s %-22.22s %9s^n", "#", "Nick", "Czas Gry");
-	
+
 	while (SQL_MoreResults(query)) {
 		place++;
 
@@ -1602,7 +1603,7 @@ public show_time_top15(failState, Handle:query, error[], errorNum, playerId[], d
 		seconds = SQL_ReadResult(query, 1);
 		minutes = 0;
 		hours = 0;
-		
+
 		while (seconds >= 60) {
 			seconds -= 60;
 			minutes++;
@@ -1612,14 +1613,14 @@ public show_time_top15(failState, Handle:query, error[], errorNum, playerId[], d
 			minutes -= 60;
 			hours++;
 		}
-		
+
 		motdLength += format(motdData[motdLength], charsmax(motdData) - motdLength, "%2i %-22.22s %0ih %1imin %1is^n", place, name, hours, minutes, seconds);
-		
+
 		SQL_NextRow(query);
 	}
-	
+
 	show_motd(id, motdData, "Top15 Czasu Gry");
-	
+
 	return PLUGIN_HANDLED;
 }
 
@@ -1630,8 +1631,8 @@ public cmd_stats(id)
 	playerId[0] = id;
 
 	playerStats[id][CURRENT_STATS] = playerStats[id][CURRENT_KILLS] * 2 + playerStats[id][CURRENT_HS] - playerStats[id][CURRENT_DEATHS] * 2;
-	
-	formatex(queryData, charsmax(queryData), "SELECT `rank`, `all` FROM (SELECT COUNT(*) AS `all` FROM `ultimate_stats`) a JOIN (SELECT COUNT(*) + 1 AS `rank` FROM `ultimate_stats` WHERE best_stats > %i ORDER BY `best_stats` DESC) b", 
+
+	formatex(queryData, charsmax(queryData), "SELECT `rank`, `all` FROM (SELECT COUNT(*) AS `all` FROM `ultimate_stats`) a JOIN (SELECT COUNT(*) + 1 AS `rank` FROM `ultimate_stats` WHERE best_stats > %i ORDER BY `best_stats` DESC) b",
 	playerStats[id][CURRENT_STATS] > playerStats[id][BEST_STATS] ? playerStats[id][CURRENT_STATS] : playerStats[id][BEST_STATS]);
 
 	SQL_ThreadQuery(sql, "show_stats", queryData, playerId, sizeof(playerId));
@@ -1643,12 +1644,12 @@ public show_stats(failState, Handle:query, error[], errorNum, playerId[], dataSi
 {
 	if (failState) {
 		log_to_file("ultimate_stats.log", "Stats SQL Error: %s (%d)", error, errorNum);
-		
+
 		return PLUGIN_HANDLED;
 	}
-	
+
 	new id = playerId[0], rank = SQL_ReadResult(query, 0), players = SQL_ReadResult(query, 1);
-	
+
 	if (playerStats[id][CURRENT_STATS] > playerStats[id][BEST_STATS]) client_print_color(id, id, "* Twoje najlepsze staty to^x03 %i^x01 zabic (w tym^x03 %i^x01 z HS) i^x03 %i^x01 zgonow^x01. *", playerStats[id][CURRENT_KILLS], playerStats[id][CURRENT_HS], playerStats[id][CURRENT_DEATHS]);
 	else client_print_color(id, id, "* Twoje najlepsze staty to^x03 %i^x01 zabic (w tym^x03 %i^x01 z HS) i^x03 %i^x01 zgonow^x01. *", playerStats[id][BEST_KILLS], playerStats[id][BEST_HS], playerStats[id][BEST_DEATHS]);
 
@@ -1662,7 +1663,7 @@ public cmd_stats_top15(id)
 	new queryData[128], playerId[1];
 
 	playerId[0] = id;
-	
+
 	formatex(queryData, charsmax(queryData), "SELECT name, best_kills, best_hs, best_deaths FROM `ultimate_stats` ORDER BY best_stats DESC LIMIT 15");
 
 	SQL_ThreadQuery(sql, "show_stats_top15", queryData, playerId, sizeof(playerId));
@@ -1674,19 +1675,19 @@ public show_stats_top15(failState, Handle:query, error[], errorNum, playerId[], 
 {
 	if (failState) {
 		log_to_file("ultimate_stats.log", "Stats Top15 SQL Error: %s (%d)", error, errorNum);
-		
+
 		return PLUGIN_HANDLED;
 	}
 
 	static motdData[2048], name[32], motdLength, place, kills, headShots, deaths;
 
 	motdLength = 0, place = 0;
-	
+
 	new id = playerId[0];
-	
+
 	motdLength = format(motdData, charsmax(motdData), "<body bgcolor=#000000><font color=#FFB000><pre>");
 	motdLength += format(motdData[motdLength], charsmax(motdData) - motdLength, "%2s %-22.22s %19s %4s^n", "#", "Nick", "Zabojstwa", "Zgony");
-	
+
 	while (SQL_MoreResults(query))
 	{
 		place++;
@@ -1699,14 +1700,14 @@ public show_stats_top15(failState, Handle:query, error[], errorNum, playerId[], 
 		kills = SQL_ReadResult(query, 1);
 		headShots = SQL_ReadResult(query, 2);
 		deaths = SQL_ReadResult(query, 3);
-		
+
 		motdLength += format(motdData[motdLength], charsmax(motdData) - motdLength, "%2i %-22.22s %1d (%i HS) %12d^n", place, name, kills, headShots, deaths);
-		
+
 		SQL_NextRow(query);
 	}
-	
+
 	show_motd(id, motdData, "Top15 Statystyk");
-	
+
 	return PLUGIN_HANDLED;
 }
 
@@ -1715,7 +1716,7 @@ public cmd_medals(id)
 	new queryData[192], playerId[1];
 
 	playerId[0] = id;
-	
+
 	formatex(queryData, charsmax(queryData), "SELECT `rank`, `all` FROM (SELECT COUNT(*) AS `all` FROM `ultimate_stats`) a JOIN (SELECT COUNT(*) + 1 AS `rank` FROM `ultimate_stats` WHERE medals > %i ORDER BY `medals` DESC) b", playerStats[id][MEDALS]);
 
 	SQL_ThreadQuery(sql, "show_medals", queryData, playerId, sizeof(playerId));
@@ -1727,15 +1728,15 @@ public show_medals(failState, Handle:query, error[], errorNum, playerId[], dataS
 {
 	if (failState) {
 		log_to_file("cssstats.log", "Medals SQL Error: %s (%d)", error, errorNum);
-		
+
 		return PLUGIN_HANDLED;
 	}
-	
+
 	new id = playerId[0], rank = SQL_ReadResult(query, 0), players = SQL_ReadResult(query, 1);
-	
+
 	client_print_color(id, id, "* Twoje medale:^x04 %i Zlote^x01,^x04 %i Srebre^x01,^x04 %i Brazowe^x01. *", playerStats[id][GOLD], playerStats[id][SILVER], playerStats[id][BRONZE]);
 	client_print_color(id, id, "* Zajmujesz^x03 %i^x01 na^x03 %i^x01 miejsce w rankingu medalowym. *", rank, players);
-	
+
 	return PLUGIN_HANDLED;
 }
 
@@ -1744,7 +1745,7 @@ public cmd_medals_top15(id)
 	new queryData[128], playerId[1];
 
 	playerId[0] = id;
-	
+
 	formatex(queryData, charsmax(queryData), "SELECT name, gold, silver, bronze, medals FROM `ultimate_stats` ORDER BY medals DESC LIMIT 15");
 
 	SQL_ThreadQuery(sql, "show_medals_top15", queryData, playerId, sizeof(playerId));
@@ -1756,19 +1757,19 @@ public show_medals_top15(failState, Handle:query, error[], errorNum, playerId[],
 {
 	if (failState) {
 		log_to_file("ultimate_stats.log", "Medals Top15 SQL Error: %s (%d)", error, errorNum);
-		
+
 		return PLUGIN_HANDLED;
 	}
 
 	static motdData[2048], name[32], motdLength, place, gold, silver, bronze, medals;
 
 	motdLength = 0, place = 0;
-	
+
 	new id = playerId[0];
-	
+
 	motdLength = format(motdData, charsmax(motdData), "<body bgcolor=#000000><font color=#FFB000><pre>");
 	motdLength += format(motdData[motdLength], charsmax(motdData) - motdLength, "%2s %-22.22s %6s %8s %8s %5s^n", "#", "Nick", "Zlote", "Srebrne", "Brazowe", "Suma");
-	
+
 	while (SQL_MoreResults(query)) {
 		place++;
 
@@ -1781,14 +1782,14 @@ public show_medals_top15(failState, Handle:query, error[], errorNum, playerId[],
 		silver = SQL_ReadResult(query, 2);
 		bronze = SQL_ReadResult(query, 3);
 		medals = SQL_ReadResult(query, 4);
-		
+
 		motdLength += format(motdData[motdLength], charsmax(motdData) - motdLength, "%2i %-22.22s %2d %7d %8d %7d^n", place, name, gold, silver, bronze, medals);
-		
+
 		SQL_NextRow(query);
 	}
-	
+
 	show_motd(id, motdData, "Top15 Medali");
-	
+
 	return PLUGIN_HANDLED;
 }
 
@@ -1812,24 +1813,24 @@ public cmd_sounds(id)
 
 	formatex(menuData, charsmax(menuData), "\wNie Obijac Sie \w[\r%s\w]", get_bit(id, soundPrepare) ? "Wlaczony" : "Wylaczony");
 	menu_additem(menu, menuData);
-	
+
 	menu_setprop(menu, MPROP_EXITNAME, "Wyjscie");
-	
+
 	menu_display(id, menu);
-	
+
 	return PLUGIN_HANDLED;
 }
 
 public cmd_sounds_handle(id, menu, item)
 {
 	if (!is_user_connected(id)) return PLUGIN_HANDLED;
-	
+
 	if (item == MENU_EXIT) {
 		menu_destroy(menu);
 
 		return PLUGIN_HANDLED;
 	}
-	
+
 	switch(item) {
 		case 0: get_bit(id, soundMayTheForce) ? rem_bit(id, soundMayTheForce) : set_bit(id, soundMayTheForce);
 		case 1: get_bit(id, soundOneAndOnly) ? rem_bit(id, soundOneAndOnly) : set_bit(id, soundOneAndOnly);
@@ -1837,7 +1838,7 @@ public cmd_sounds_handle(id, menu, item)
 		case 3: get_bit(id, soundLastLeft) ? rem_bit(id, soundLastLeft) : set_bit(id, soundLastLeft);
 		case 4: get_bit(id, soundPrepare) ? rem_bit(id, soundPrepare) : set_bit(id, soundPrepare);
 	}
-	
+
 	save_sounds(id);
 
 	cmd_sounds(id);
@@ -1858,7 +1859,7 @@ public weapons_top15_handle(id)
 
 	if (message[0] != '/') return PLUGIN_CONTINUE;
 
-	for (new i = 1; i < MAX_WEAPONS; i++) {
+	for (new i = 1; i < WEAPONS_END; i++) {
 		if (i == CSW_SHIELD || i == CSW_C4 || i == CSW_FLASHBANG || i == CSW_SMOKEGRENADE) continue;
 
 		get_weaponname(i, weaponName, charsmax(weaponName));
@@ -1877,37 +1878,37 @@ public weapons_top15_handle(id)
 			return PLUGIN_HANDLED;
 		}
 	}
- 
+
 	return PLUGIN_CONTINUE;
 }
 
 public sql_init()
 {
 	new host[32], user[32], pass[32], db[32], error[128], errorNum;
-	
+
 	get_cvar_string("ultimate_stats_host", host, charsmax(host));
 	get_cvar_string("ultimate_stats_user", user, charsmax(user));
 	get_cvar_string("ultimate_stats_pass", pass, charsmax(pass));
 	get_cvar_string("ultimate_stats_db", db, charsmax(db));
-	
+
 	sql = SQL_MakeDbTuple(host, user, pass, db);
 
 	connection = SQL_Connect(sql, errorNum, error, charsmax(error));
-	
+
 	if (errorNum) {
 		log_to_file("ultimate_stats.log", "SQL Query Error: %s", error);
-		
+
 		return;
 	}
 
 	new queryData[2048];
-	
+
 	formatex(queryData, charsmax(queryData), "CREATE TABLE IF NOT EXISTS `ultimate_stats` (`id` INT(11) AUTO_INCREMENT, `name` VARCHAR(64) NOT NULL, `steamid` VARCHAR(32) NOT NULL, `ip` VARCHAR(16) NOT NULL, `admin` INT NOT NULL DEFAULT 0, `kills` INT NOT NULL DEFAULT 0, ");
-	add(queryData,  charsmax(queryData), "`deaths` INT NOT NULL DEFAULT 0, `hs_kills` INT NOT NULL DEFAULT 0, `assists` INT NOT NULL DEFAULT 0, `revenges` INT NOT NULL DEFAULT 0, `team_kills` INT NOT NULL DEFAULT 0, `shots` INT NOT NULL DEFAULT 0, `hits` INT NOT NULL DEFAULT 0, ");   
-	add(queryData,  charsmax(queryData), "`damage` INT NOT NULL DEFAULT 0, `rounds` INT NOT NULL DEFAULT 0, `rounds_ct` INT NOT NULL DEFAULT 0, `rounds_t` INT NOT NULL DEFAULT 0, `wins_ct` INT NOT NULL DEFAULT 0, `wins_t` INT NOT NULL DEFAULT 0, "); 
-	add(queryData,  charsmax(queryData), "`connects` INT NOT NULL DEFAULT 0, `time` INT NOT NULL DEFAULT 0, `gold` INT NOT NULL DEFAULT 0, `silver` INT NOT NULL DEFAULT 0, `bronze` INT NOT NULL DEFAULT 0, `medals` INT NOT NULL DEFAULT 0, "); 
+	add(queryData,  charsmax(queryData), "`deaths` INT NOT NULL DEFAULT 0, `hs_kills` INT NOT NULL DEFAULT 0, `assists` INT NOT NULL DEFAULT 0, `revenges` INT NOT NULL DEFAULT 0, `team_kills` INT NOT NULL DEFAULT 0, `shots` INT NOT NULL DEFAULT 0, `hits` INT NOT NULL DEFAULT 0, ");
+	add(queryData,  charsmax(queryData), "`damage` INT NOT NULL DEFAULT 0, `rounds` INT NOT NULL DEFAULT 0, `rounds_ct` INT NOT NULL DEFAULT 0, `rounds_t` INT NOT NULL DEFAULT 0, `wins_ct` INT NOT NULL DEFAULT 0, `wins_t` INT NOT NULL DEFAULT 0, ");
+	add(queryData,  charsmax(queryData), "`connects` INT NOT NULL DEFAULT 0, `time` INT NOT NULL DEFAULT 0, `gold` INT NOT NULL DEFAULT 0, `silver` INT NOT NULL DEFAULT 0, `bronze` INT NOT NULL DEFAULT 0, `medals` INT NOT NULL DEFAULT 0, ");
 	add(queryData,  charsmax(queryData), "`best_kills` INT NOT NULL DEFAULT 0, `best_deaths` INT NOT NULL DEFAULT 0, `best_hs` INT NOT NULL DEFAULT 0, `best_stats` INT NOT NULL DEFAULT 0, `defusions` INT NOT NULL DEFAULT 0, `defused` INT NOT NULL DEFAULT 0, ");
-	add(queryData,  charsmax(queryData), "`planted` INT NOT NULL DEFAULT 0, `exploded` INT NOT NULL DEFAULT 0, `elo_rank` DOUBLE NOT NULL DEFAULT 100, `h_0` INT NOT NULL DEFAULT 0, `h_1` INT NOT NULL DEFAULT 0, `h_2` INT NOT NULL DEFAULT 0, `h_3` INT NOT NULL DEFAULT 0, "); 
+	add(queryData,  charsmax(queryData), "`planted` INT NOT NULL DEFAULT 0, `exploded` INT NOT NULL DEFAULT 0, `elo_rank` DOUBLE NOT NULL DEFAULT 100, `h_0` INT NOT NULL DEFAULT 0, `h_1` INT NOT NULL DEFAULT 0, `h_2` INT NOT NULL DEFAULT 0, `h_3` INT NOT NULL DEFAULT 0, ");
 	add(queryData,  charsmax(queryData), "`h_4` INT NOT NULL DEFAULT 0, `h_5` INT NOT NULL DEFAULT 0, `h_6` INT NOT NULL DEFAULT 0, `h_7` INT NOT NULL DEFAULT 0, `first_visit` BIGINT NOT NULL DEFAULT 0, `last_visit` BIGINT NOT NULL DEFAULT 0,  PRIMARY KEY(`id`), UNIQUE KEY `name` (`name`));");
 
 	new Handle:query = SQL_PrepareQuery(connection, queryData);
@@ -1915,8 +1916,8 @@ public sql_init()
 	SQL_Execute(query);
 
 	formatex(queryData, charsmax(queryData), "CREATE TABLE IF NOT EXISTS `ultimate_stats_weapons` (`player_id` INT(11), `weapon` VARCHAR(32) NOT NULL, `kills` INT NOT NULL DEFAULT 0, `deaths` INT NOT NULL DEFAULT 0, `hs_kills` INT NOT NULL DEFAULT 0, `team_kills` INT NOT NULL DEFAULT 0, ");
-	add(queryData,  charsmax(queryData), "`shots` INT NOT NULL DEFAULT 0, `hits` INT NOT NULL DEFAULT 0, `damage` INT NOT NULL DEFAULT 0, `h_0` INT NOT NULL DEFAULT 0, `h_1` INT NOT NULL DEFAULT 0, `h_2` INT NOT NULL DEFAULT 0, ");   
-	add(queryData,  charsmax(queryData), "`h_3` INT NOT NULL DEFAULT 0, `h_4` INT NOT NULL DEFAULT 0, `h_5` INT NOT NULL DEFAULT 0, `h_6` INT NOT NULL DEFAULT 0, `h_7` INT NOT NULL DEFAULT 0, PRIMARY KEY(`player_id`, `weapon`));");  
+	add(queryData,  charsmax(queryData), "`shots` INT NOT NULL DEFAULT 0, `hits` INT NOT NULL DEFAULT 0, `damage` INT NOT NULL DEFAULT 0, `h_0` INT NOT NULL DEFAULT 0, `h_1` INT NOT NULL DEFAULT 0, `h_2` INT NOT NULL DEFAULT 0, ");
+	add(queryData,  charsmax(queryData), "`h_3` INT NOT NULL DEFAULT 0, `h_4` INT NOT NULL DEFAULT 0, `h_5` INT NOT NULL DEFAULT 0, `h_6` INT NOT NULL DEFAULT 0, `h_7` INT NOT NULL DEFAULT 0, PRIMARY KEY(`player_id`, `weapon`));");
 
 	query = SQL_PrepareQuery(connection, queryData);
 
@@ -1929,7 +1930,7 @@ public sql_init()
 	SQL_Execute(query);
 
 	if (SQL_NumResults(query)) statsNum = SQL_ReadResult(query, 0);
-	
+
 	SQL_FreeHandle(query);
 
 	sqlConnection = true;
@@ -1949,8 +1950,14 @@ public load_stats(id)
 		return;
 	}
 
+	get_user_name(id, playerStats[id][NAME], charsmax(playerStats[][NAME]));
+	get_user_authid(id, playerStats[id][STEAMID], charsmax(playerStats[][STEAMID]));
+	get_user_ip(id, playerStats[id][IP], charsmax(playerStats[][IP]), 1);
+
+	sql_safe_string(playerStats[id][NAME], playerStats[id][SAFE_NAME], charsmax(playerStats[][SAFE_NAME]));
+
 	static playerId[1], queryData[256], queryTemp[96];
-	
+
 	playerId[0] = id;
 
 	get_rank_formula(queryTemp, charsmax(queryTemp));
@@ -1964,7 +1971,7 @@ public load_stats(id)
 	}
 
 	add(queryData, charsmax(queryData), queryTemp);
-	
+
 	SQL_ThreadQuery(sql, "load_stats_handle", queryData, playerId, sizeof(playerId));
 }
 
@@ -1972,12 +1979,12 @@ public load_stats_handle(failState, Handle:query, error[], errorNum, playerId[],
 {
 	if (failState) {
 		log_to_file("ultimate_stats.log", "Load SQL Error: %s (%d)", error, errorNum);
-		
+
 		return;
 	}
-	
+
 	new id = playerId[0];
-	
+
 	if (SQL_NumResults(query)) {
 		playerStats[id][PLAYER_ID] = SQL_ReadResult(query, SQL_FieldNameToNum(query, "id"));
 		playerStats[id][STATS_KILLS] = SQL_ReadResult(query, SQL_FieldNameToNum(query, "kills"));
@@ -2055,7 +2062,7 @@ public get_rank(id)
 	}
 
 	add(queryData, charsmax(queryData), queryTemp);
-	
+
 	SQL_ThreadQuery(sql, "get_rank_handle", queryData, playerId, sizeof(playerId));
 }
 
@@ -2063,12 +2070,12 @@ public get_rank_handle(failState, Handle:query, error[], errorNum, playerId[], d
 {
 	if (failState) {
 		log_to_file("ultimate_stats.log", "Get Rank SQL Error: %s (%d)", error, errorNum);
-		
+
 		return;
 	}
-	
+
 	new id = playerId[0];
-	
+
 	if (SQL_NumResults(query)) playerStats[id][STATS_RANK] = SQL_ReadResult(query, SQL_FieldNameToNum(query, "rank"));
 }
 
@@ -2089,7 +2096,7 @@ public load_weapons_stats(id)
 	get_rank_formula(queryTemp, charsmax(queryTemp));
 
 	formatex(queryData, charsmax(queryData), "SELECT a.*, (SELECT COUNT(*) FROM `ultimate_stats_weapons` WHERE %s AND weapon = a.weapon) + 1 AS `rank` FROM `ultimate_stats_weapons` a WHERE `player_id` = '%i'", queryTemp, playerStats[id][PLAYER_ID]);
-		
+
 	SQL_ThreadQuery(sql, "load_weapons_stats_handle", queryData, playerId, sizeof(playerId));
 }
 
@@ -2097,12 +2104,12 @@ public load_weapons_stats_handle(failState, Handle:query, error[], errorNum, pla
 {
 	if (failState) {
 		log_to_file("ultimate_stats.log", "Load Weapons SQL Error: %s (%d)", error, errorNum);
-		
+
 		return;
 	}
-	
+
 	new id = playerId[0], weaponName[32], weapon, ret;
-	
+
 	while (SQL_MoreResults(query)) {
 		SQL_ReadResult(query, SQL_FieldNameToNum(query, "weapon"), weaponName, charsmax(weaponName));
 
@@ -2143,13 +2150,13 @@ stock save_stats(id, end = 0)
 	playerStats[id][SAFE_NAME], playerStats[id][STEAMID], playerStats[id][IP], playerStats[id][ADMIN], playerStats[id][STATS_KILLS], playerStats[id][STATS_DEATHS], playerStats[id][STATS_HS]);
 
 	formatex(queryTemp, charsmax(queryTemp), "assists = %d, revenges = %d, team_kills = %d, shots = %d, hits = %d, damage = %d, rounds = %d, rounds_ct = %d, rounds_t = %d, ",
-	playerStats[id][ASSISTS], playerStats[id][REVENGES], playerStats[id][STATS_TK], playerStats[id][STATS_SHOTS], playerStats[id][STATS_HITS], playerStats[id][STATS_DAMAGE], playerStats[id][ROUNDS], playerStats[id][ROUNDS_CT], playerStats[id][ROUNDS_T]);  
+	playerStats[id][ASSISTS], playerStats[id][REVENGES], playerStats[id][STATS_TK], playerStats[id][STATS_SHOTS], playerStats[id][STATS_HITS], playerStats[id][STATS_DAMAGE], playerStats[id][ROUNDS], playerStats[id][ROUNDS_CT], playerStats[id][ROUNDS_T]);
 	add(queryData, charsmax(queryData), queryTemp);
-	
+
 	formatex(queryTemp, charsmax(queryTemp), "wins_ct = %d, wins_t = %d, connects = %d, time = %d, defusions = %d, defused = %d,  planted = %d, exploded = %d, ",
-	playerStats[id][WIN_CT], playerStats[id][WIN_T], playerStats[id][CONNECTS], playerStats[id][TIME] + get_user_time(id), playerStats[id][BOMB_DEFUSIONS], playerStats[id][BOMB_DEFUSED], playerStats[id][BOMB_PLANTED], playerStats[id][BOMB_EXPLODED]); 
+	playerStats[id][WIN_CT], playerStats[id][WIN_T], playerStats[id][CONNECTS], playerStats[id][TIME] + get_user_time(id), playerStats[id][BOMB_DEFUSIONS], playerStats[id][BOMB_DEFUSED], playerStats[id][BOMB_PLANTED], playerStats[id][BOMB_EXPLODED]);
 	add(queryData, charsmax(queryData), queryTemp);
-	
+
 	formatex(queryTemp, charsmax(queryTemp), "elo_rank = %.2f, h_0 = %d, h_1 = %d, h_2 = %d, h_3 = %d, h_4 = %d, h_5 = %d, h_6 = %d, h_7 = %d, last_visit = UNIX_TIMESTAMP()",
 	playerStats[id][ELO_RANK], playerStats[id][HIT_GENERIC], playerStats[id][HIT_HEAD], playerStats[id][HIT_CHEST], playerStats[id][HIT_STOMACH], playerStats[id][HIT_RIGHTARM], playerStats[id][HIT_LEFTARM], playerStats[id][HIT_RIGHTLEG], playerStats[id][HIT_LEFTLEG]);
 	add(queryData, charsmax(queryData), queryTemp);
@@ -2157,15 +2164,15 @@ stock save_stats(id, end = 0)
 	playerStats[id][CURRENT_STATS] = playerStats[id][CURRENT_KILLS] * 2 + playerStats[id][CURRENT_HS] - playerStats[id][CURRENT_DEATHS] * 2;
 
 	if (playerStats[id][CURRENT_STATS] > playerStats[id][BEST_STATS]) {
-		formatex(queryTemp, charsmax(queryTemp), ", best_stats = %d, best_kills = %d, best_hs = %d, best_deaths = %d", 
+		formatex(queryTemp, charsmax(queryTemp), ", best_stats = %d, best_kills = %d, best_hs = %d, best_deaths = %d",
 		playerStats[id][CURRENT_STATS], playerStats[id][CURRENT_KILLS], playerStats[id][CURRENT_HS], playerStats[id][CURRENT_DEATHS]);
 		add(queryData, charsmax(queryData), queryTemp);
 	}
 
 	new medals = playerStats[id][GOLD] * 3 + playerStats[id][SILVER] * 2 + playerStats[id][BRONZE];
-	
-	if (medals > playerStats[id][MEDALS]) {			
-		formatex(queryTemp, charsmax(queryTemp), ", gold = %d, silver = %d, bronze = %d, medals = '%d'", 
+
+	if (medals > playerStats[id][MEDALS]) {
+		formatex(queryTemp, charsmax(queryTemp), ", gold = %d, silver = %d, bronze = %d, medals = '%d'",
 		playerStats[id][GOLD], playerStats[id][SILVER], playerStats[id][BRONZE], medals);
 		add(queryData, charsmax(queryData), queryTemp);
 	}
@@ -2178,14 +2185,16 @@ stock save_stats(id, end = 0)
 
 	add(queryData, charsmax(queryData), queryTemp);
 
+	log_to_file("ultimate_stats.debug", queryData);
+
 	if (end == MAP_END) {
 		static error[128], errorNum, Handle:query;
-		
+
 		query = SQL_PrepareQuery(connection, queryData);
-		
+
 		if (!SQL_Execute(query)) {
 			errorNum = SQL_QueryError(query, error, charsmax(error));
-			
+
 			log_to_file("ultimate_stats.log", "SQL Query Error. [%d] %s", errorNum, error);
 		}
 
@@ -2206,28 +2215,30 @@ stock save_weapons_stats(id, end = 0)
 	static queryData[4096], queryTemp[512], weaponName[32];
 	queryData = "";
 
-	for (new i = 1; i < MAX_WEAPONS; i++) {
+	for (new i = 1; i < WEAPONS_END; i++) {
 		if ((i == CSW_SHIELD || i == CSW_C4 || i == CSW_FLASHBANG || i == CSW_SMOKEGRENADE) || (!playerWRStats[id][i][STATS_SHOTS] && !playerWRStats[id][i][STATS_DEATHS])) continue;
 
 		get_weaponname(i, weaponName, charsmax(weaponName));
 
-		formatex(queryTemp, charsmax(queryTemp), "INSERT INTO `ultimate_stats_weapons` VALUES (%d, '%s', %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d) ON DUPLICATE KEY UPDATE kills = %d, deaths = %d, hs_kills = %d, team_kills = %d, shots = %d, hits = %d, damage = %d, h_0 = %d, h_1 = %d, h_2 = %d, h_3 = %d, h_4 = %d, h_5 = %d, h_6 = %d, h_7 = %d; ", 
-		playerStats[id][PLAYER_ID], weaponName, playerWStats[id][i][STATS_KILLS], playerWStats[id][i][STATS_DEATHS], playerWStats[id][i][STATS_HS], playerWStats[id][i][STATS_TK], playerWStats[id][i][STATS_SHOTS], playerWStats[id][i][STATS_HITS], playerWStats[id][i][STATS_DAMAGE], playerWStats[id][i][HIT_GENERIC], playerWStats[id][i][HIT_HEAD], playerWStats[id][i][HIT_CHEST], 
-		playerWStats[id][i][HIT_STOMACH], playerWStats[id][i][HIT_LEFTARM], playerWStats[id][i][HIT_RIGHTARM], playerWStats[id][i][HIT_LEFTLEG], playerWStats[id][i][HIT_RIGHTLEG], playerWStats[id][i][STATS_KILLS], playerWStats[id][i][STATS_DEATHS], playerWStats[id][i][STATS_HS], playerWStats[id][i][STATS_TK], playerWStats[id][i][STATS_SHOTS], playerWStats[id][i][STATS_HITS], 
+		formatex(queryTemp, charsmax(queryTemp), "INSERT INTO `ultimate_stats_weapons` VALUES (%d, '%s', %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d) ON DUPLICATE KEY UPDATE kills = %d, deaths = %d, hs_kills = %d, team_kills = %d, shots = %d, hits = %d, damage = %d, h_0 = %d, h_1 = %d, h_2 = %d, h_3 = %d, h_4 = %d, h_5 = %d, h_6 = %d, h_7 = %d; ",
+		playerStats[id][PLAYER_ID], weaponName, playerWStats[id][i][STATS_KILLS], playerWStats[id][i][STATS_DEATHS], playerWStats[id][i][STATS_HS], playerWStats[id][i][STATS_TK], playerWStats[id][i][STATS_SHOTS], playerWStats[id][i][STATS_HITS], playerWStats[id][i][STATS_DAMAGE], playerWStats[id][i][HIT_GENERIC], playerWStats[id][i][HIT_HEAD], playerWStats[id][i][HIT_CHEST],
+		playerWStats[id][i][HIT_STOMACH], playerWStats[id][i][HIT_LEFTARM], playerWStats[id][i][HIT_RIGHTARM], playerWStats[id][i][HIT_LEFTLEG], playerWStats[id][i][HIT_RIGHTLEG], playerWStats[id][i][STATS_KILLS], playerWStats[id][i][STATS_DEATHS], playerWStats[id][i][STATS_HS], playerWStats[id][i][STATS_TK], playerWStats[id][i][STATS_SHOTS], playerWStats[id][i][STATS_HITS],
 		playerWStats[id][i][STATS_DAMAGE], playerWStats[id][i][HIT_GENERIC], playerWStats[id][i][HIT_HEAD], playerWStats[id][i][HIT_CHEST], playerWStats[id][i][HIT_STOMACH], playerWStats[id][i][HIT_LEFTARM], playerWStats[id][i][HIT_RIGHTARM], playerWStats[id][i][HIT_LEFTLEG], playerWStats[id][i][HIT_RIGHTLEG]);
 
 		add(queryData, charsmax(queryData), queryTemp);
 	}
 
+	log_to_file("ultimate_stats.debug", queryData);
+
 	if (queryData[0]) {
 		if (end == MAP_END) {
 			static error[128], errorNum, Handle:query;
-				
+
 			query = SQL_PrepareQuery(connection, queryData);
-			
+
 			if (!SQL_Execute(query)) {
 				errorNum = SQL_QueryError(query, error, charsmax(error));
-				
+
 				log_to_file("ultimate_stats.log", "SQL Query Error. [%d] %s", errorNum, error);
 			}
 
@@ -2243,9 +2254,9 @@ public load_sounds(id)
 	if (!soundsEnabled) return;
 
 	new vaultKey[64], vaultData[16], soundsData[5][5];
-	
+
 	formatex(vaultKey, charsmax(vaultKey), "%s-sounds", playerStats[id][NAME]);
-	
+
 	if (nvault_get(sounds, vaultKey, vaultData, charsmax(vaultData))) {
 		parse(vaultData, soundsData[0], charsmax(soundsData), soundsData[1], charsmax(soundsData), soundsData[2], charsmax(soundsData), soundsData[3], charsmax(soundsData), soundsData[4], charsmax(soundsData));
 
@@ -2255,17 +2266,17 @@ public load_sounds(id)
 		if (str_to_num(soundsData[3])) set_bit(id, soundPrepare);
 		if (str_to_num(soundsData[4])) set_bit(id, soundLastLeft);
 	}
-} 
+}
 
 public save_sounds(id)
 {
 	if (!soundsEnabled) return;
 
 	new vaultKey[64], vaultData[16];
-	
+
 	formatex(vaultKey, charsmax(vaultKey), "%s-sounds", playerStats[id][NAME]);
 	formatex(vaultData, charsmax(vaultData), "%d %d %d %d %d", get_bit(id, soundMayTheForce), get_bit(id, soundOneAndOnly), get_bit(id, soundHumiliation), get_bit(id, soundPrepare), get_bit(id, soundLastLeft));
-	
+
 	nvault_set(sounds, vaultKey, vaultData);
 }
 
@@ -2321,7 +2332,7 @@ stock clear_stats(player = 0, reset = 0)
 			if (!reset) playerRStats[id][i] = 0;
 		}
 
-		for (new i = 0; i < MAX_WEAPONS; i++) {
+		for (new i = 0; i < WEAPONS_END; i++) {
 			for (new j = 0; j < STATS_END; j++) {
 				if (player) playerWStats[id][i][j] = 0;
 
@@ -2355,14 +2366,14 @@ stock copy_stats(id, dest[], length, stats = 0, type = 0, weapon = 0, player = 0
 stock Float:accuracy(shots, hits)
 {
 	if (!shots) return (0.0);
-	
+
 	return (100.0 * float(hits) / float(shots));
 }
 
 stock Float:effec(kills, deaths)
 {
 	if (!kills) return (0.0);
-	
+
 	return (100.0 * float(kills) / float(kills + deaths));
 }
 
@@ -2372,7 +2383,7 @@ stock Float:distance(distance)
 stock get_loguser_index()
 {
 	new userLog[96], userName[32];
-	
+
 	read_logargv(0, userLog, charsmax(userLog));
 	parse_loguser(userLog, userName, charsmax(userName));
 
@@ -2382,7 +2393,7 @@ stock get_loguser_index()
 stock sql_safe_string(const source[], dest[], length)
 {
 	copy(dest, length, source);
-	
+
 	replace_all(dest, length, "\\", "\\\\");
 	replace_all(dest, length, "\0", "\\0");
 	replace_all(dest, length, "\n", "\\n");
@@ -2393,14 +2404,14 @@ stock sql_safe_string(const source[], dest[], length)
 	replace_all(dest, length, "^"", "\^"");
 }
 
-stock cmd_execute(id, const text[], any:...) 
+stock cmd_execute(id, const text[], any:...)
 {
 	message_begin(MSG_ONE, SVC_DIRECTOR, _, id);
 	write_byte(strlen(text) + 2);
 	write_byte(10);
 	write_string(text);
 	message_end();
-	
+
 	#pragma unused text
 
 	new message[256];
@@ -2421,11 +2432,11 @@ public native_get_stats(plugin, params)
 {
 	if (params < 5) {
 		log_error(AMX_ERR_NATIVE, "Bad arguments num, expected 5, passed %d.", params);
-		
+
 		return 0;
 	} else if (params > 5 && params != 7) {
 		log_error(AMX_ERR_NATIVE, "Bad arguments num, expected 7, passed %d.", params);
-		
+
 		return 0;
 	}
 
@@ -2438,7 +2449,7 @@ public native_get_stats(plugin, params)
 	formatex(queryData, charsmax(queryData), "SELECT kills, deaths, hs_kills, team_kills, shots, hits, damage, assists, h_0, h_1, h_2, h_3, h_4, h_5, h_6, h_7, name, steamid FROM `ultimate_stats` ORDER BY %s LIMIT %d, %d", queryTemp, index, index);
 
 	query = SQL_PrepareQuery(connection, queryData);
-	
+
 	if (SQL_Execute(query)) {
 		if (SQL_NumResults(query)) {
 			for (new i = 0; i < 8; i++) stats[i] = SQL_ReadResult(query, i);
@@ -2449,7 +2460,7 @@ public native_get_stats(plugin, params)
 		}
 	} else {
 		errorNum = SQL_QueryError(query, error, charsmax(error));
-			
+
 		log_to_file("ultimate_stats.log", "SQL Query Error. [%d] %s", errorNum, error);
 	}
 
@@ -2469,11 +2480,11 @@ public native_get_stats2(plugin, params)
 {
 	if (params < 5) {
 		log_error(AMX_ERR_NATIVE, "Bad arguments num, expected 5, passed %d.", params);
-		
+
 		return 0;
 	} else if (params > 5 && params != 7) {
 		log_error(AMX_ERR_NATIVE, "Bad arguments num, expected 7, passed %d.", params);
-		
+
 		return 0;
 	}
 
@@ -2482,11 +2493,11 @@ public native_get_stats2(plugin, params)
 	static queryData[192], error[128], queryTemp[96], steamId[32], objectives[4], Handle:query, errorNum;
 
 	get_rank_formula(queryTemp, charsmax(queryTemp), 0);
-	
+
 	formatex(queryData, charsmax(queryData), "SELECT defusions, defused, planted, exploded, steamid FROM `ultimate_stats` ORDER BY %s LIMIT %d, %d", queryTemp, index, index);
-	
+
 	query = SQL_PrepareQuery(connection, queryData);
-	
+
 	if (SQL_Execute(query)) {
 		if (SQL_NumResults(query)) {
 			for (new i = 0; i < 4; i++) objectives[i] = SQL_ReadResult(query, i);
@@ -2495,7 +2506,7 @@ public native_get_stats2(plugin, params)
 		}
 	} else {
 		errorNum = SQL_QueryError(query, error, charsmax(error));
-			
+
 		log_to_file("ultimate_stats.log", "SQL Query Error. [%d] %s", errorNum, error);
 	}
 
@@ -2512,7 +2523,7 @@ public native_get_user_stats(plugin, params)
 {
 	if (params < 3) {
 		log_error(AMX_ERR_NATIVE, "Bad arguments num, expected 3, passed %d.", params);
-		
+
 		return 0;
 	}
 
@@ -2520,7 +2531,7 @@ public native_get_user_stats(plugin, params)
 
 	if (!is_user_valid(id)) {
 		log_error(AMX_ERR_NATIVE, "Invalid player - %i.", id);
-		
+
 		return 0;
 	}
 
@@ -2539,15 +2550,15 @@ public native_get_user_stats2(plugin, params)
 {
 	if (params < 2) {
 		log_error(AMX_ERR_NATIVE, "Bad arguments num, expected 2, passed %d.", params);
-		
+
 		return 0;
-	} 
+	}
 
 	new id = get_param(1);
 
 	if (!is_user_valid(id)) {
 		log_error(AMX_ERR_NATIVE, "Invalid player - %i.", id);
-		
+
 		return 0;
 	}
 
@@ -2564,19 +2575,19 @@ public native_get_user_wstats(plugin, params)
 {
 	if (params < 4) {
 		log_error(AMX_ERR_NATIVE, "Bad arguments num, expected 4, passed %d.", params);
-		
+
 		return 0;
-	} 
+	}
 
 	new id = get_param(1), weapon = get_param(2);
 
 	if (!is_user_valid(id)) {
 		log_error(AMX_ERR_NATIVE, "Invalid player - %i.", id);
-		
+
 		return 0;
 	} else if (!is_weapon_valid(id)) {
 		log_error(AMX_ERR_NATIVE, "Invalid weapon - %i.", weapon);
-		
+
 		return 0;
 	}
 
@@ -2595,7 +2606,7 @@ public native_get_user_rstats(plugin, params)
 {
 	if (params < 3) {
 		log_error(AMX_ERR_NATIVE, "Bad arguments num, expected 3, passed %d.", params);
-		
+
 		return 0;
 	}
 
@@ -2603,7 +2614,7 @@ public native_get_user_rstats(plugin, params)
 
 	if (!is_user_valid(id)) {
 		log_error(AMX_ERR_NATIVE, "Invalid player - %i.", id);
-		
+
 		return 0;
 	}
 
@@ -2622,7 +2633,7 @@ public native_get_user_wrstats(plugin, params)
 {
 	if (params < 4) {
 		log_error(AMX_ERR_NATIVE, "Bad arguments num, expected 4, passed %d.", params);
-		
+
 		return 0;
 	}
 
@@ -2630,11 +2641,11 @@ public native_get_user_wrstats(plugin, params)
 
 	if (!is_user_valid(id)) {
 		log_error(AMX_ERR_NATIVE, "Invalid player - %i.", id);
-		
+
 		return 0;
 	} else if (!is_weapon_valid(id)) {
 		log_error(AMX_ERR_NATIVE, "Invalid weapon - %i.", weapon);
-		
+
 		return 0;
 	}
 
@@ -2653,11 +2664,11 @@ public native_get_user_astats(plugin, params)
 {
 	if (params < 4) {
 		log_error(AMX_ERR_NATIVE, "Bad arguments num, expected 4, passed %d.", params);
-		
+
 		return 0;
 	} else if (params > 4 && params < 6) {
 		log_error(AMX_ERR_NATIVE, "Bad arguments num, expected 6, passed %d.", params);
-		
+
 		return 0;
 	}
 
@@ -2665,7 +2676,7 @@ public native_get_user_astats(plugin, params)
 
 	if (!is_user_valid(id) || (!is_user_valid(player) && player != 0)) {
 		log_error(AMX_ERR_NATIVE, "Invalid player - %i.", is_user_valid(id) ? player : id);
-		
+
 		return 0;
 	}
 
@@ -2690,11 +2701,11 @@ public native_get_user_vstats(plugin, params)
 {
 	if (params < 4) {
 		log_error(AMX_ERR_NATIVE, "Bad arguments num, expected 4, passed %d.", params);
-		
+
 		return 0;
 	} else if (params > 4 && params < 6) {
 		log_error(AMX_ERR_NATIVE, "Bad arguments num, expected 6, passed %d.", params);
-		
+
 		return 0;
 	}
 
@@ -2702,7 +2713,7 @@ public native_get_user_vstats(plugin, params)
 
 	if (!is_user_valid(id) || (!is_user_valid(player) && player != 0)) {
 		log_error(AMX_ERR_NATIVE, "Invalid player - %i.", is_user_valid(id) ? player : id);
-		
+
 		return 0;
 	}
 
@@ -2727,7 +2738,7 @@ public native_get_user_total_time(plugin, params)
 {
 	if (params < 1) {
 		log_error(AMX_ERR_NATIVE, "Bad arguments num, expected 1, passed %d.", params);
-		
+
 		return 0;
 	}
 
@@ -2735,7 +2746,7 @@ public native_get_user_total_time(plugin, params)
 
 	if (!is_user_valid(id)) {
 		log_error(AMX_ERR_NATIVE, "Invalid player - %i.", id);
-		
+
 		return 0;
 	}
 
@@ -2746,7 +2757,7 @@ public Float:native_get_user_elo(plugin, params)
 {
 	if (params < 1) {
 		log_error(AMX_ERR_NATIVE, "Bad arguments num, expected 1, passed %d.", params);
-		
+
 		return 0.0;
 	}
 
@@ -2754,7 +2765,7 @@ public Float:native_get_user_elo(plugin, params)
 
 	if (!is_user_valid(id)) {
 		log_error(AMX_ERR_NATIVE, "Invalid player - %i.", id);
-		
+
 		return 0.0;
 	}
 
@@ -2765,7 +2776,7 @@ public native_add_user_elo(plugin, params)
 {
 	if (params < 2) {
 		log_error(AMX_ERR_NATIVE, "Bad arguments num, expected 2, passed %d.", params);
-		
+
 		return 0;
 	}
 
@@ -2773,7 +2784,7 @@ public native_add_user_elo(plugin, params)
 
 	if (!is_user_valid(id)) {
 		log_error(AMX_ERR_NATIVE, "Invalid player - %i.", id);
-		
+
 		return 0;
 	}
 
@@ -2788,7 +2799,7 @@ public native_reset_user_wstats(plugin, params)
 {
 	if (params != 1) {
 		log_error(AMX_ERR_NATIVE, "Bad arguments num, expected 1, passed %d.", params);
-		
+
 		return 0;
 	}
 
@@ -2796,7 +2807,7 @@ public native_reset_user_wstats(plugin, params)
 
 	if (!is_user_valid(id) || !is_user_connected(id)) {
 		log_error(AMX_ERR_NATIVE, "Invalid player - %i.", id);
-		
+
 		return 0;
 	}
 
