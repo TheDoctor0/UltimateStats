@@ -20,6 +20,7 @@
 
 #define MAX_MONEY           16000
 
+#define TASK_LOAD           5449
 #define TASK_TIME           6701
 #define TASK_HUD            7834
 
@@ -221,20 +222,20 @@ public plugin_end()
 
 public client_connect(id)
 {
-	clear_stats(id);
-
+	rem_bit(id, statsLoaded);
+	rem_bit(id, weaponStatsLoaded);
 	rem_bit(id, soundMayTheForce);
 	rem_bit(id, soundOneAndOnly);
 	rem_bit(id, soundHumiliation);
 	rem_bit(id, soundLastLeft);
 	rem_bit(id, soundPrepare);
-	rem_bit(id, statsLoaded);
-	rem_bit(id, weaponStatsLoaded);
 	rem_bit(id, visit);
+
+	clear_stats(id);
 
 	if (is_user_bot(id) || is_user_hltv(id)) return;
 
-	set_task(random_float(0.1, 0.5), "load_stats", id);
+	set_task(1.0, "load_stats", id + TASK_LOAD);
 }
 
 public client_putinserver(id)
@@ -245,7 +246,7 @@ public client_authorized(id)
 
 public client_disconnected(id)
 {
-	remove_task(id);
+	remove_task(id + TASK_LOAD);
 	remove_task(id + TASK_TIME);
 
 	save_stats(id, mapChange ? MAP_END : FINAL);
@@ -1944,8 +1945,10 @@ public ignore_handle(failState, Handle:query, error[], errorCode, data[], dataSi
 
 public load_stats(id)
 {
+	id -= TASK_LOAD;
+
 	if (!sqlConnection) {
-		set_task(1.0, "load_stats", id);
+		set_task(1.0, "load_stats", id + TASK_LOAD);
 
 		return;
 	}
@@ -2227,8 +2230,6 @@ stock save_weapons_stats(id, end = 0)
 
 		add(queryData, charsmax(queryData), queryTemp);
 	}
-
-	log_to_file("ultimate_stats.debug", queryData);
 
 	if (queryData[0]) {
 		if (end == MAP_END) {
