@@ -31,10 +31,12 @@
 #define is_user_valid(%1)   (1 <= %1 <= MAX_PLAYERS)
 #define is_weapon_valid(%1) (0 < %1 < WEAPONS_END)
 
-#define get_elo(%1,%2)      (1.0 / (1.0 + floatpower(10.0, ((%1 - %2) / 400.0))))
-#define set_elo(%1,%2,%3)   (%1 + 20.0 * (%2 - %3))
+#define get_skill(%1,%2)      (1.0 / (1.0 + floatpower(10.0, ((%1 - %2) / 400.0))))
+#define set_skill(%1,%2,%3)   (%1 + 20.0 * (%2 - %3))
 
 #define stat(%1)            (%1 - HIT_END - 2)
+
+//#define DEBUG
 
 new const body[][] = { "cialo", "glowa", "klatka piersiowa", "brzuch", "lewe ramie", "prawe ramie", "lewa noga", "prawa noga" };
 
@@ -53,7 +55,7 @@ enum _:save { NORMAL = -1, ROUND, FINAL, MAP_END };
 enum _:types { STATS, ROUND_STATS, WEAPON_STATS, WEAPON_ROUND_STATS, ATTACKER_STATS, VICTIM_STATS };
 enum _:formulas { FORMULA_KD, FORMULA_KILLS, FORMULA_KILLS_HS, FORMULA_ELO, FORMULA_TIME };
 enum _:playerData{ BOMB_DEFUSIONS = STATS_END, BOMB_DEFUSED, BOMB_PLANTED, BOMB_EXPLODED, SPECT, HUD_INFO, PLAYER_ID,  FIRST_VISIT, LAST_VISIT, TIME, CONNECTS, ASSISTS, REVENGE, REVENGES, ROUNDS, ROUNDS_CT, ROUNDS_T, WIN_CT,
-	WIN_T, BRONZE, SILVER, GOLD, MEDALS, BEST_STATS, BEST_KILLS, BEST_DEATHS, BEST_HS, CURRENT_STATS, CURRENT_KILLS, CURRENT_DEATHS, CURRENT_HS, ADMIN, Float:ELO_RANK, NAME[32], SAFE_NAME[64], STEAMID[32], IP[16] };
+	WIN_T, BRONZE, SILVER, GOLD, MEDALS, BEST_STATS, BEST_KILLS, BEST_DEATHS, BEST_HS, CURRENT_STATS, CURRENT_KILLS, CURRENT_DEATHS, CURRENT_HS, ADMIN, Float:SKILL, NAME[32], SAFE_NAME[64], STEAMID[32], IP[16] };
 
 new const commands[cmds][][] = {
 	{ "cmd_menu", "\yMenu \rStatystyk", "menustaty", "say /menustaty", "say_team /menustaty", "say /statsmenu", "say_team /statsmenu", "say /statymenu", "say_team /statymenu", "", "" },
@@ -235,11 +237,25 @@ public client_connect(id)
 
 	if (is_user_bot(id) || is_user_hltv(id)) return;
 
+	#if defined DEBUG
+	get_user_name(id, playerStats[id][NAME], charsmax(playerStats[][NAME]));
+
+	log_to_file("ultimate_stats.debug", "client_connect (ID: %i | Name: %s)", id, playerStats[id][NAME]);
+	#endif
+
 	set_task(1.0, "load_stats", id + TASK_LOAD);
 }
 
 public client_putinserver(id)
+{
 	playerStats[id][CONNECTS]++;
+
+	#if defined DEBUG
+	if (is_user_bot(id) || is_user_hltv(id)) return;
+
+	log_to_file("ultimate_stats.debug", "client_putinserver (ID: %i | Name: %s)", id, playerStats[id][NAME]);
+	#endif
+}
 
 public client_authorized(id)
 	playerStats[id][ADMIN] = get_user_flags(id) & ADMIN_BAN ? 1 : 0;
@@ -529,8 +545,8 @@ public death(killer, victim, weapon, hitPlace, teamKill)
 
 		playerStats[victim][REVENGE] = killer;
 
-		playerStats[killer][ELO_RANK] = _:set_elo(playerStats[killer][ELO_RANK], 1.0, get_elo(playerStats[victim][ELO_RANK], playerStats[killer][ELO_RANK]));
-		playerStats[victim][ELO_RANK] = floatmax(1.0, set_elo(playerStats[victim][ELO_RANK], 0.0, get_elo(playerStats[killer][ELO_RANK], playerStats[victim][ELO_RANK])));
+		playerStats[killer][SKILL] = _:set_skill(playerStats[killer][SKILL], 1.0, get_skill(playerStats[victim][SKILL], playerStats[killer][SKILL]));
+		playerStats[victim][SKILL] = floatmax(1.0, set_skill(playerStats[victim][SKILL], 0.0, get_skill(playerStats[killer][SKILL], playerStats[victim][SKILL])));
 
 		playerAStats[victim][0][KILLER_ID] = killer;
 		playerAStats[victim][0][KILLER_HEALTH] = get_user_health(killer);
@@ -1231,7 +1247,7 @@ public cmd_top15(id)
 
 	get_rank_formula(queryTemp, charsmax(queryTemp), 0);
 
-	formatex(queryData, charsmax(queryData), "SELECT a.name, a.kills, a.deaths, a.hs_kills, a.shots, a.hits, a.elo_rank FROM `ultimate_stats` a ORDER BY %s LIMIT 15", queryTemp);
+	formatex(queryData, charsmax(queryData), "SELECT a.name, a.kills, a.deaths, a.hs_kills, a.shots, a.hits, a.skill FROM `ultimate_stats` a ORDER BY %s LIMIT 15", queryTemp);
 
 	SQL_ThreadQuery(sql, "show_top15", queryData, playerId, sizeof(playerId));
 
@@ -1299,7 +1315,7 @@ public cmd_topme(id)
 
 	get_rank_formula(queryTemp, charsmax(queryTemp), 0);
 
-	formatex(queryData, charsmax(queryData), "SELECT a.name, a.kills, a.deaths, a.hs_kills, a.shots, a.hits, a.elo_rank FROM `ultimate_stats` a ORDER BY %s LIMIT %i, 15", queryTemp, start);
+	formatex(queryData, charsmax(queryData), "SELECT a.name, a.kills, a.deaths, a.hs_kills, a.shots, a.hits, a.skill FROM `ultimate_stats` a ORDER BY %s LIMIT %i, 15", queryTemp, start);
 
 	SQL_ThreadQuery(sql, "show_topme", queryData, playerId, sizeof(playerId));
 
@@ -1728,7 +1744,7 @@ public cmd_medals(id)
 public show_medals(failState, Handle:query, error[], errorNum, playerId[], dataSize)
 {
 	if (failState) {
-		log_to_file("cssstats.log", "Medals SQL Error: %s (%d)", error, errorNum);
+		log_to_file("ultimate_stats.log", "Medals SQL Error: %s (%d)", error, errorNum);
 
 		return PLUGIN_HANDLED;
 	}
@@ -1909,7 +1925,7 @@ public sql_init()
 	add(queryData,  charsmax(queryData), "`damage` INT NOT NULL DEFAULT 0, `rounds` INT NOT NULL DEFAULT 0, `rounds_ct` INT NOT NULL DEFAULT 0, `rounds_t` INT NOT NULL DEFAULT 0, `wins_ct` INT NOT NULL DEFAULT 0, `wins_t` INT NOT NULL DEFAULT 0, ");
 	add(queryData,  charsmax(queryData), "`connects` INT NOT NULL DEFAULT 0, `time` INT NOT NULL DEFAULT 0, `gold` INT NOT NULL DEFAULT 0, `silver` INT NOT NULL DEFAULT 0, `bronze` INT NOT NULL DEFAULT 0, `medals` INT NOT NULL DEFAULT 0, ");
 	add(queryData,  charsmax(queryData), "`best_kills` INT NOT NULL DEFAULT 0, `best_deaths` INT NOT NULL DEFAULT 0, `best_hs` INT NOT NULL DEFAULT 0, `best_stats` INT NOT NULL DEFAULT 0, `defusions` INT NOT NULL DEFAULT 0, `defused` INT NOT NULL DEFAULT 0, ");
-	add(queryData,  charsmax(queryData), "`planted` INT NOT NULL DEFAULT 0, `exploded` INT NOT NULL DEFAULT 0, `elo_rank` DOUBLE NOT NULL DEFAULT 100, `h_0` INT NOT NULL DEFAULT 0, `h_1` INT NOT NULL DEFAULT 0, `h_2` INT NOT NULL DEFAULT 0, `h_3` INT NOT NULL DEFAULT 0, ");
+	add(queryData,  charsmax(queryData), "`planted` INT NOT NULL DEFAULT 0, `exploded` INT NOT NULL DEFAULT 0, `skill` DOUBLE NOT NULL DEFAULT 100, `h_0` INT NOT NULL DEFAULT 0, `h_1` INT NOT NULL DEFAULT 0, `h_2` INT NOT NULL DEFAULT 0, `h_3` INT NOT NULL DEFAULT 0, ");
 	add(queryData,  charsmax(queryData), "`h_4` INT NOT NULL DEFAULT 0, `h_5` INT NOT NULL DEFAULT 0, `h_6` INT NOT NULL DEFAULT 0, `h_7` INT NOT NULL DEFAULT 0, `first_visit` BIGINT NOT NULL DEFAULT 0, `last_visit` BIGINT NOT NULL DEFAULT 0,  PRIMARY KEY(`id`), UNIQUE KEY `name` (`name`));");
 
 	new Handle:query = SQL_PrepareQuery(connection, queryData);
@@ -1959,7 +1975,11 @@ public load_stats(id)
 
 	sql_safe_string(playerStats[id][NAME], playerStats[id][SAFE_NAME], charsmax(playerStats[][SAFE_NAME]));
 
-	static playerId[1], queryData[256], queryTemp[96];
+	#if defined DEBUG
+	log_to_file("ultimate_stats.debug", "load_stats (ID: %i | Name: %s)", id, playerStats[id][NAME]);
+	#endif
+
+	new playerId[1], queryData[256], queryTemp[96];
 
 	playerId[0] = id;
 
@@ -2030,11 +2050,11 @@ public load_stats_handle(failState, Handle:query, error[], errorNum, playerId[],
 		playerStats[id][FIRST_VISIT] = SQL_ReadResult(query, SQL_FieldNameToNum(query, "first_visit"));
 		playerStats[id][LAST_VISIT] = SQL_ReadResult(query, SQL_FieldNameToNum(query, "last_visit"));
 
-		SQL_ReadResult(query, SQL_FieldNameToNum(query, "elo_rank"), playerStats[id][ELO_RANK]);
+		SQL_ReadResult(query, SQL_FieldNameToNum(query, "skill"), playerStats[id][SKILL]);
 	} else {
 		statsNum++;
 
-		static queryData[256];
+		new queryData[256];
 
 		formatex(queryData, charsmax(queryData), "INSERT IGNORE INTO `ultimate_stats` (`name`, `steamid`, `ip`, `first_visit`) VALUES (^"%s^", '%s', '%s', UNIX_TIMESTAMP())", playerStats[id][SAFE_NAME], playerStats[id][STEAMID], playerStats[id][IP]);
 
@@ -2050,7 +2070,7 @@ public load_stats_handle(failState, Handle:query, error[], errorNum, playerId[],
 
 public get_rank(id)
 {
-	static queryData[256], queryTemp[96], playerId[1];
+	new queryData[256], queryTemp[96], playerId[1];
 
 	playerId[0] = id;
 
@@ -2084,7 +2104,7 @@ public get_rank_handle(failState, Handle:query, error[], errorNum, playerId[], d
 
 public load_weapons_stats(id)
 {
-	static queryData[256], queryTemp[96], playerId[1];
+	new queryData[256], queryTemp[96], playerId[1];
 
 	playerId[0] = id;
 
@@ -2160,8 +2180,8 @@ stock save_stats(id, end = 0)
 	playerStats[id][WIN_CT], playerStats[id][WIN_T], playerStats[id][CONNECTS], playerStats[id][TIME] + get_user_time(id), playerStats[id][BOMB_DEFUSIONS], playerStats[id][BOMB_DEFUSED], playerStats[id][BOMB_PLANTED], playerStats[id][BOMB_EXPLODED]);
 	add(queryData, charsmax(queryData), queryTemp);
 
-	formatex(queryTemp, charsmax(queryTemp), "elo_rank = %.2f, h_0 = %d, h_1 = %d, h_2 = %d, h_3 = %d, h_4 = %d, h_5 = %d, h_6 = %d, h_7 = %d, last_visit = UNIX_TIMESTAMP()",
-	playerStats[id][ELO_RANK], playerStats[id][HIT_GENERIC], playerStats[id][HIT_HEAD], playerStats[id][HIT_CHEST], playerStats[id][HIT_STOMACH], playerStats[id][HIT_RIGHTARM], playerStats[id][HIT_LEFTARM], playerStats[id][HIT_RIGHTLEG], playerStats[id][HIT_LEFTLEG]);
+	formatex(queryTemp, charsmax(queryTemp), "skill = %.2f, h_0 = %d, h_1 = %d, h_2 = %d, h_3 = %d, h_4 = %d, h_5 = %d, h_6 = %d, h_7 = %d, last_visit = UNIX_TIMESTAMP()",
+	playerStats[id][SKILL], playerStats[id][HIT_GENERIC], playerStats[id][HIT_HEAD], playerStats[id][HIT_CHEST], playerStats[id][HIT_STOMACH], playerStats[id][HIT_RIGHTARM], playerStats[id][HIT_LEFTARM], playerStats[id][HIT_RIGHTLEG], playerStats[id][HIT_LEFTLEG]);
 	add(queryData, charsmax(queryData), queryTemp);
 
 	playerStats[id][CURRENT_STATS] = playerStats[id][CURRENT_KILLS] * 2 + playerStats[id][CURRENT_HS] - playerStats[id][CURRENT_DEATHS] * 2;
@@ -2188,7 +2208,9 @@ stock save_stats(id, end = 0)
 
 	add(queryData, charsmax(queryData), queryTemp);
 
+	#if defined DEBUG
 	log_to_file("ultimate_stats.debug", queryData);
+	#endif
 
 	if (end == MAP_END) {
 		static error[128], errorNum, Handle:query;
@@ -2314,7 +2336,7 @@ stock get_rank_formula(dest[], length, where = 1, weapon = 0)
 		case FORMULA_KD: formatex(dest, length, "(a.kills - a.deaths - a.team_kills)%s", where ? " < (kills - deaths - team_kills)" : " DESC, a.kills DESC, a.hs_kills DESC");
 		case FORMULA_KILLS: formatex(dest, length, "(a.kills)%s", where ? " < (kills)" : " DESC, a.kills, a.hs_kills DESC");
 		case FORMULA_KILLS_HS: formatex(dest, length, "(a.kills + a.hs_kills)%s", where ? " < (kills + hs_kills)" : " DESC, a.kills, a.hs_kills DESC");
-		case FORMULA_ELO: formatex(dest, length, "(a.elo_rank)%s", where ? " < (elo_rank)" : " DESC, a.kills, a.hs_kills DESC");
+		case FORMULA_ELO: formatex(dest, length, "(a.skill)%s", where ? " < (skill)" : " DESC, a.kills, a.hs_kills DESC");
 		case FORMULA_TIME: formatex(dest, length, "(a.time)%s", where ? " < (time)" : " DESC, a.kills, a.hs_kills DESC");
 	}
 }
@@ -2326,7 +2348,7 @@ stock clear_stats(player = 0, reset = 0)
 	for (new id = player; id <= limit; id++) {
 		playerStats[id][HUD_INFO] = false;
 
-		if (player) playerStats[id][ELO_RANK] = _:100.0;
+		if (player) playerStats[id][SKILL] = _:100.0;
 
 		for (new i = HIT_GENERIC; i <= CURRENT_HS; i++) {
 			if (player) playerStats[id][i] = 0;
@@ -2770,7 +2792,7 @@ public Float:native_get_user_elo(plugin, params)
 		return 0.0;
 	}
 
-	return playerStats[id][ELO_RANK];
+	return playerStats[id][SKILL];
 }
 
 public native_add_user_elo(plugin, params)
@@ -2789,7 +2811,7 @@ public native_add_user_elo(plugin, params)
 		return 0;
 	}
 
-	playerStats[id][ELO_RANK] += get_param_f(2);
+	playerStats[id][SKILL] += get_param_f(2);
 
 	save_stats(id, NORMAL);
 
