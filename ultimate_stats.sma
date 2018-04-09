@@ -11,6 +11,8 @@
 #define VERSION "1.0"
 #define AUTHOR  "O'Zone"
 
+#pragma dynamic 32768
+
 #define CSW_SHIELD          2
 
 #define WEAPONS_END         CSW_P90 + 1
@@ -36,7 +38,7 @@
 
 #define stat(%1)            (%1 - HIT_END - 2)
 
-//#define DEBUG
+#define DEBUG
 
 new const body[][] = { "cialo", "glowa", "klatka piersiowa", "brzuch", "lewe ramie", "prawe ramie", "lewa noga", "prawa noga" };
 
@@ -224,23 +226,17 @@ public plugin_end()
 
 public client_connect(id)
 {
-	rem_bit(id, statsLoaded);
-	rem_bit(id, weaponStatsLoaded);
-	rem_bit(id, soundMayTheForce);
-	rem_bit(id, soundOneAndOnly);
-	rem_bit(id, soundHumiliation);
-	rem_bit(id, soundLastLeft);
-	rem_bit(id, soundPrepare);
-	rem_bit(id, visit);
-
 	clear_stats(id);
 
 	if (is_user_bot(id) || is_user_hltv(id)) return;
 
 	#if defined DEBUG
-	get_user_name(id, playerStats[id][NAME], charsmax(playerStats[][NAME]));
+	new name[32], steamId[35], ip[32];
+	get_user_name(id, name, charsmax(name));
+	get_user_authid(id, steamId, charsmax(steamId));
+	get_user_ip(id, ip, charsmax(ip), 1);
 
-	log_to_file("ultimate_stats.debug", "client_connect (ID: %i | Name: %s)", id, playerStats[id][NAME]);
+	log_to_file("ultimate_stats-debug.log", "client_connect (ID: %i | Nick: %s | IP: %s | SteamID: %s)", id, name, ip, steamId);
 	#endif
 
 	set_task(1.0, "load_stats", id + TASK_LOAD);
@@ -252,8 +248,12 @@ public client_putinserver(id)
 
 	#if defined DEBUG
 	if (is_user_bot(id) || is_user_hltv(id)) return;
+	new name[32], steamId[35], ip[32];
+	get_user_name(id, name, charsmax(name));
+	get_user_authid(id, steamId, charsmax(steamId));
+	get_user_ip(id, ip, charsmax(ip), 1);
 
-	log_to_file("ultimate_stats.debug", "client_putinserver (ID: %i | Name: %s)", id, playerStats[id][NAME]);
+	log_to_file("ultimate_stats-debug.log", "client_putinserver (ID: %i | Nick: %s | IP: %s | SteamID: %s)", id, name, ip, steamId);
 	#endif
 }
 
@@ -1976,7 +1976,7 @@ public load_stats(id)
 	sql_safe_string(playerStats[id][NAME], playerStats[id][SAFE_NAME], charsmax(playerStats[][SAFE_NAME]));
 
 	#if defined DEBUG
-	log_to_file("ultimate_stats.debug", "load_stats (ID: %i | Name: %s)", id, playerStats[id][NAME]);
+	log_to_file("ultimate_stats-debug.log", "load_stats (ID: %i | Nick: %s | IP: %s | SteamID: %s)", id, playerStats[id][NAME], playerStats[id][IP], playerStats[id][STEAMID]);
 	#endif
 
 	new playerId[1], queryData[256], queryTemp[96];
@@ -2065,7 +2065,7 @@ public load_stats_handle(failState, Handle:query, error[], errorNum, playerId[],
 
 	set_bit(id, statsLoaded);
 
-	set_task(0.5, "load_weapons_stats", id);
+	set_task(0.1, "load_weapons_stats", id + TASK_LOAD);
 }
 
 public get_rank(id)
@@ -2104,6 +2104,8 @@ public get_rank_handle(failState, Handle:query, error[], errorNum, playerId[], d
 
 public load_weapons_stats(id)
 {
+	id -= TASK_LOAD;
+
 	new queryData[256], queryTemp[96], playerId[1];
 
 	playerId[0] = id;
@@ -2111,7 +2113,7 @@ public load_weapons_stats(id)
 	if (!playerStats[id][PLAYER_ID]) playerStats[id][PLAYER_ID] = get_player_id(id);
 
 	if (!playerStats[id][PLAYER_ID]) {
-		set_task(0.5, "load_weapons_stats", id);
+		set_task(0.5, "load_weapons_stats", id + TASK_LOAD);
 
 		return;
 	}
@@ -2163,11 +2165,11 @@ public load_weapons_stats_handle(failState, Handle:query, error[], errorNum, pla
 	ExecuteForward(statsForwards[FORWARD_LOADED], ret, id);
 }
 
-stock save_stats(id, end = 0)
+stock save_stats(id, type = 0)
 {
 	if (!get_bit(id, statsLoaded)) return;
 
-	static queryData[2048], queryTemp[256];
+	new queryData[2048], queryTemp[256];
 
 	formatex(queryData, charsmax(queryData), "UPDATE `ultimate_stats` SET name = ^"%s^", steamid = ^"%s^", ip = ^"%s^", admin = %d, kills = %d, deaths = %d, hs_kills = %d, ",
 	playerStats[id][SAFE_NAME], playerStats[id][STEAMID], playerStats[id][IP], playerStats[id][ADMIN], playerStats[id][STATS_KILLS], playerStats[id][STATS_DEATHS], playerStats[id][STATS_HS]);
@@ -2176,7 +2178,7 @@ stock save_stats(id, end = 0)
 	playerStats[id][ASSISTS], playerStats[id][REVENGES], playerStats[id][STATS_TK], playerStats[id][STATS_SHOTS], playerStats[id][STATS_HITS], playerStats[id][STATS_DAMAGE], playerStats[id][ROUNDS], playerStats[id][ROUNDS_CT], playerStats[id][ROUNDS_T]);
 	add(queryData, charsmax(queryData), queryTemp);
 
-	formatex(queryTemp, charsmax(queryTemp), "wins_ct = %d, wins_t = %d, connects = %d, time = %d, defusions = %d, defused = %d,  planted = %d, exploded = %d, ",
+	formatex(queryTemp, charsmax(queryTemp), "wins_ct = %d, wins_t = %d, connects = %d, time = %d, defusions = %d, defused = %d, planted = %d, exploded = %d, ",
 	playerStats[id][WIN_CT], playerStats[id][WIN_T], playerStats[id][CONNECTS], playerStats[id][TIME] + get_user_time(id), playerStats[id][BOMB_DEFUSIONS], playerStats[id][BOMB_DEFUSED], playerStats[id][BOMB_PLANTED], playerStats[id][BOMB_EXPLODED]);
 	add(queryData, charsmax(queryData), queryTemp);
 
@@ -2208,11 +2210,9 @@ stock save_stats(id, end = 0)
 
 	add(queryData, charsmax(queryData), queryTemp);
 
-	#if defined DEBUG
-	log_to_file("ultimate_stats.debug", queryData);
-	#endif
+	log_to_file("ultimate_stats-debug.log", queryData);
 
-	if (end == MAP_END) {
+	if (type == MAP_END) {
 		static error[128], errorNum, Handle:query;
 
 		query = SQL_PrepareQuery(connection, queryData);
@@ -2226,18 +2226,17 @@ stock save_stats(id, end = 0)
 		SQL_FreeHandle(query);
 	} else SQL_ThreadQuery(sql, "ignore_handle", queryData);
 
-	if (end == ROUND) get_rank(id);
+	if (type == ROUND) get_rank(id);
+	else if (type > ROUND) rem_bit(id, statsLoaded);
 
-	if (end > 0) rem_bit(id, statsLoaded);
-
-	save_weapons_stats(id, end);
+	save_weapons_stats(id, type);
 }
 
-stock save_weapons_stats(id, end = 0)
+stock save_weapons_stats(id, type = 0)
 {
 	if (!get_bit(id, weaponStatsLoaded)) return;
 
-	static queryData[4096], queryTemp[512], weaponName[32];
+	new queryData[4096], queryTemp[512], weaponName[32];
 	queryData = "";
 
 	for (new i = 1; i < WEAPONS_END; i++) {
@@ -2254,7 +2253,7 @@ stock save_weapons_stats(id, end = 0)
 	}
 
 	if (queryData[0]) {
-		if (end == MAP_END) {
+		if (type == MAP_END) {
 			static error[128], errorNum, Handle:query;
 
 			query = SQL_PrepareQuery(connection, queryData);
@@ -2269,7 +2268,11 @@ stock save_weapons_stats(id, end = 0)
 		} else SQL_ThreadQuery(sql, "ignore_handle", queryData);
 	}
 
-	if (end > 0) rem_bit(id, weaponStatsLoaded);
+	if (type > ROUND) {
+		rem_bit(id, weaponStatsLoaded);
+
+		clear_stats(id);
+	}
 }
 
 public load_sounds(id)
@@ -2345,6 +2348,25 @@ stock clear_stats(player = 0, reset = 0)
 {
 	new limit = player ? player : MAX_PLAYERS;
 
+	if (reset) {
+		new queryData[128];
+
+		formatex(queryData, charsmax(queryData), "DELETE FROM `ultimate_stats_weapons` WHERE player_id = '%i'", playerStats[player][PLAYER_ID]);
+
+		SQL_ThreadQuery(sql, "ignore_handle", queryData);
+	}
+
+	if (player && !reset) {
+		rem_bit(player, statsLoaded);
+		rem_bit(player, weaponStatsLoaded);
+		rem_bit(player, soundMayTheForce);
+		rem_bit(player, soundOneAndOnly);
+		rem_bit(player, soundHumiliation);
+		rem_bit(player, soundLastLeft);
+		rem_bit(player, soundPrepare);
+		rem_bit(player, visit);
+	}
+
 	for (new id = player; id <= limit; id++) {
 		playerStats[id][HUD_INFO] = false;
 
@@ -2370,6 +2392,8 @@ stock clear_stats(player = 0, reset = 0)
 			}
 		}
 	}
+
+	if (reset) save_stats(player);
 }
 
 stock copy_stats(id, dest[], length, stats = 0, type = 0, weapon = 0, player = 0)
