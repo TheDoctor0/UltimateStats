@@ -38,26 +38,22 @@
 
 #define stat(%1)            (%1 - HIT_END - 2)
 
-#define DEBUG
-
 new const body[][] = { "cialo", "glowa", "klatka piersiowa", "brzuch", "lewe ramie", "prawe ramie", "lewa noga", "prawa noga" };
 
-// new const cmdStats[][] = { "stats", "say /stats", "say_team /stats" };
-// new const cmdScore[][] = { "score", "say /score", "say_team /score" };
-// new const cmdReport[][] = { "report", "say /report", "say_team /report" };
-// native add_user_kill(id, weapon = 0);
-// rename get_user_total_time to get_user_gametime
-
-enum _:cmds { CMD_MENU, CMD_HP, CMD_ME, CMD_STATSME, CMD_RANK, CMD_RANKSTATS, CMD_TOP15, CMD_TOPME, CMD_TIME, CMD_TIMEADMIN, CMD_TIMETOP15, CMD_STATS, CMD_STATSTOP15, CMD_MEDALS, CMD_MEDALSTOP15, CMD_SOUNDS };
-enum _:forwards { FORWARD_DAMAGE, FORWARD_DEATH, FORWARD_ASSIST, FORWARD_REVENGE, FORWARD_PLANTING, FORWARD_PLANTED, FORWARD_EXPLODE, FORWARD_DEFUSING, FORWARD_DEFUSED, FORWARD_THROW, FORWARD_LOADED };
+enum _:cmds { CMD_MENU, CMD_HP, CMD_ME, CMD_STATSME, CMD_RANK, CMD_RANKSTATS, CMD_TOP15, CMD_TOPME, CMD_TIME,
+	CMD_TIMEADMIN, CMD_TIMETOP15, CMD_STATS, CMD_STATSTOP15, CMD_MEDALS, CMD_MEDALSTOP15, CMD_SOUNDS };
+enum _:forwards { FORWARD_DAMAGE, FORWARD_DEATH, FORWARD_ASSIST, FORWARD_REVENGE, FORWARD_PLANTING,
+	FORWARD_PLANTED, FORWARD_EXPLODE, FORWARD_DEFUSING, FORWARD_DEFUSED, FORWARD_THROW, FORWARD_LOADED };
 enum _:statsData { STATS_KILLS = HIT_END, STATS_DEATHS, STATS_HS, STATS_TK, STATS_SHOTS, STATS_HITS, STATS_DAMAGE, STATS_RANK };
 enum _:killerData { KILLER_ID = STATS_END, KILLER_HEALTH, KILLER_ARMOR, KILLER_TEAM, KILLER_DISTANCE };
 enum _:winers { THIRD, SECOND, FIRST };
 enum _:save { NORMAL = -1, ROUND, FINAL, MAP_END };
 enum _:types { STATS, ROUND_STATS, WEAPON_STATS, WEAPON_ROUND_STATS, ATTACKER_STATS, VICTIM_STATS };
 enum _:formulas { FORMULA_KD, FORMULA_KILLS, FORMULA_KILLS_HS, FORMULA_ELO, FORMULA_TIME };
-enum _:playerData{ BOMB_DEFUSIONS = STATS_END, BOMB_DEFUSED, BOMB_PLANTED, BOMB_EXPLODED, SPECT, HUD_INFO, PLAYER_ID,  FIRST_VISIT, LAST_VISIT, TIME, CONNECTS, ASSISTS, REVENGE, REVENGES, ROUNDS, ROUNDS_CT, ROUNDS_T, WIN_CT,
-	WIN_T, BRONZE, SILVER, GOLD, MEDALS, BEST_STATS, BEST_KILLS, BEST_DEATHS, BEST_HS, CURRENT_STATS, CURRENT_KILLS, CURRENT_DEATHS, CURRENT_HS, ADMIN, Float:SKILL, NAME[32], SAFE_NAME[64], STEAMID[32], IP[16] };
+enum _:playerData{ BOMB_DEFUSIONS = STATS_END, BOMB_DEFUSED, BOMB_PLANTED, BOMB_EXPLODED, SPECT, HUD_INFO, PLAYER_ID,
+	FIRST_VISIT, LAST_VISIT, TIME, CONNECTS, ASSISTS, REVENGE, REVENGES, ROUNDS, ROUNDS_CT, ROUNDS_T, WIN_CT, WIN_T,
+	BRONZE, SILVER, GOLD, MEDALS, BEST_STATS, BEST_KILLS, BEST_DEATHS, BEST_HS, CURRENT_STATS, CURRENT_KILLS,
+	CURRENT_DEATHS, CURRENT_HS, ADMIN, Float:SKILL, NAME[32], SAFE_NAME[64], STEAMID[32], IP[16] };
 
 new const commands[cmds][][] = {
 	{ "cmd_menu", "\yMenu \rStatystyk", "menustaty", "say /menustaty", "say_team /menustaty", "say /statsmenu", "say_team /statsmenu", "say /statymenu", "say_team /statymenu", "", "" },
@@ -81,18 +77,20 @@ new const commands[cmds][][] = {
 new playerStats[MAX_PLAYERS + 1][playerData], playerRStats[MAX_PLAYERS + 1][playerData], playerWStats[MAX_PLAYERS + 1][WEAPONS_END][STATS_END], playerWRStats[MAX_PLAYERS + 1][WEAPONS_END][STATS_END],
 	playerAStats[MAX_PLAYERS + 1][MAX_PLAYERS + 1][KILLER_END], playerVStats[MAX_PLAYERS + 1][MAX_PLAYERS + 1][KILLER_END], weaponsAmmo[MAX_PLAYERS + 1][WEAPONS_END], statsForwards[forwards], statsNum,
 	Handle:sql, Handle:connection, bool:sqlConnection, bool:oneAndOnly, bool:block, bool:mapChange, round, sounds, statsLoaded, weaponStatsLoaded, visit, soundMayTheForce, soundOneAndOnly, soundPrepare,
-	soundHumiliation, soundLastLeft, ret, rankSaveType, rankFormula, weaponRankFormula, assistEnabled, revengeEnabled, assistMinDamage, assistMoney, revengeMoney, assistInfoEnabled, revengeInfoEnabled,
-	leaderInfoEnabled, killerInfoEnabled, victimInfoEnabled, medalsEnabled, prefixEnabled, xvsxEnabled, soundsEnabled, hpEnabled, meEnabled, statsMeEnabled, rankEnabled, rankStatsEnabled, top15Enabled,
-	topMeEnabled, spectRankEnabled, victimHudEnabled, attackerHudEnabled, hsHudEnabled, disruptiveHudEnabled, bestScoreHudEnabled, planter, defuser, hudSpectRank, hudEndRound;
+	soundHumiliation, soundLastLeft, ret, planter, defuser, hudSpectRank, hudEndRound;
+
+new sqlHost[64], sqlUser[64], sqlPassword[64], sqlDatabase[64], rankSaveType, rankFormula, weaponRankFormula, assistEnabled, revengeEnabled, assistMinDamage, assistMoney, revengeMoney, assistInfoEnabled,
+	revengeInfoEnabled, leaderInfoEnabled, killerInfoEnabled, victimInfoEnabled, medalsEnabled, prefixEnabled, xvsxEnabled, soundsEnabled, hpEnabled, meEnabled, statsMeEnabled, rankEnabled, rankStatsEnabled,
+	top15Enabled, topMeEnabled, spectRankEnabled, victimHudEnabled, attackerHudEnabled, hsHudEnabled, disruptiveHudEnabled, bestScoreHudEnabled;
 
 public plugin_init()
 {
 	register_plugin(PLUGIN, VERSION, AUTHOR);
 
-	create_cvar("ultimate_stats_host", "localhost", FCVAR_SPONLY | FCVAR_PROTECTED);
-	create_cvar("ultimate_stats_user", "user", FCVAR_SPONLY | FCVAR_PROTECTED);
-	create_cvar("ultimate_stats_pass", "password", FCVAR_SPONLY | FCVAR_PROTECTED);
-	create_cvar("ultimate_stats_db", "database", FCVAR_SPONLY | FCVAR_PROTECTED);
+	bind_pcvar_string(create_cvar("ultimate_stats_host", "localhost", FCVAR_SPONLY | FCVAR_PROTECTED), sqlHost, charsmax(sqlHost));
+	bind_pcvar_string(create_cvar("ultimate_stats_user", "user", FCVAR_SPONLY | FCVAR_PROTECTED), sqlUser, charsmax(sqlUser));
+	bind_pcvar_string(create_cvar("ultimate_stats_pass", "password", FCVAR_SPONLY | FCVAR_PROTECTED), sqlPassword, charsmax(sqlPassword));
+	bind_pcvar_string(create_cvar("ultimate_stats_db", "database", FCVAR_SPONLY | FCVAR_PROTECTED), sqlDatabase, charsmax(sqlDatabase));
 
 	bind_pcvar_num(create_cvar("ultimate_stats_rank_save_type", "0"), rankSaveType); // 0 - nick | 1 - steamid | 2 - ip
 	bind_pcvar_num(create_cvar("ultimate_stats_rank_formula", "0"), rankFormula); // 0 - kills- deaths - tk | 1 - kills | 2 - kills + hs | 3 - elo rank (skill) | 4 - played time
@@ -230,32 +228,11 @@ public client_connect(id)
 
 	if (is_user_bot(id) || is_user_hltv(id)) return;
 
-	#if defined DEBUG
-	new name[32], steamId[35], ip[32];
-	get_user_name(id, name, charsmax(name));
-	get_user_authid(id, steamId, charsmax(steamId));
-	get_user_ip(id, ip, charsmax(ip), 1);
-
-	log_to_file("ultimate_stats-debug.log", "client_connect (ID: %i | Nick: %s | IP: %s | SteamID: %s)", id, name, ip, steamId);
-	#endif
-
 	set_task(1.0, "load_stats", id + TASK_LOAD);
 }
 
 public client_putinserver(id)
-{
 	playerStats[id][CONNECTS]++;
-
-	#if defined DEBUG
-	if (is_user_bot(id) || is_user_hltv(id)) return;
-	new name[32], steamId[35], ip[32];
-	get_user_name(id, name, charsmax(name));
-	get_user_authid(id, steamId, charsmax(steamId));
-	get_user_ip(id, ip, charsmax(ip), 1);
-
-	log_to_file("ultimate_stats-debug.log", "client_putinserver (ID: %i | Nick: %s | IP: %s | SteamID: %s)", id, name, ip, steamId);
-	#endif
-}
 
 public client_authorized(id)
 	playerStats[id][ADMIN] = get_user_flags(id) & ADMIN_BAN ? 1 : 0;
@@ -1901,14 +1878,9 @@ public weapons_top15_handle(id)
 
 public sql_init()
 {
-	new host[32], user[32], pass[32], db[32], error[128], errorNum;
+	new error[128], errorNum;
 
-	get_cvar_string("ultimate_stats_host", host, charsmax(host));
-	get_cvar_string("ultimate_stats_user", user, charsmax(user));
-	get_cvar_string("ultimate_stats_pass", pass, charsmax(pass));
-	get_cvar_string("ultimate_stats_db", db, charsmax(db));
-
-	sql = SQL_MakeDbTuple(host, user, pass, db);
+	sql = SQL_MakeDbTuple(sqlHost, sqlUser, sqlPassword, sqlDatabase);
 
 	connection = SQL_Connect(sql, errorNum, error, charsmax(error));
 
@@ -1974,10 +1946,6 @@ public load_stats(id)
 	get_user_ip(id, playerStats[id][IP], charsmax(playerStats[][IP]), 1);
 
 	sql_safe_string(playerStats[id][NAME], playerStats[id][SAFE_NAME], charsmax(playerStats[][SAFE_NAME]));
-
-	#if defined DEBUG
-	log_to_file("ultimate_stats-debug.log", "load_stats (ID: %i | Nick: %s | IP: %s | SteamID: %s)", id, playerStats[id][NAME], playerStats[id][IP], playerStats[id][STEAMID]);
-	#endif
 
 	new playerId[1], queryData[256], queryTemp[96];
 
@@ -2209,8 +2177,6 @@ stock save_stats(id, type = 0)
 	}
 
 	add(queryData, charsmax(queryData), queryTemp);
-
-	log_to_file("ultimate_stats-debug.log", queryData);
 
 	if (type == MAP_END) {
 		static error[128], errorNum, Handle:query;
