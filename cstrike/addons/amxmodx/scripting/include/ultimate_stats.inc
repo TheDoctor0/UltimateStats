@@ -1,16 +1,7 @@
-// vim: set ts=4 sw=4 tw=99 noet:
-//
-// AMX Mod X, based on AMX Mod by Aleksander Naszko ("OLO").
-// Copyright (C) The AMX Mod X Development Team.
-//
-// This software is licensed under the GNU General Public License, version 3 or higher.
-// Additional exceptions apply. For full license details, see LICENSE.txt or visit:
-//     https://alliedmods.net/amxmodx-license
-
-#if defined _csstats_included
+#if defined _ultimate_stats_included
 	#endinput
 #endif
-#define _csstats_included
+#define _ultimate_stats_included
 
 /**
  * Retrieves the client's current weapon statistics.
@@ -71,13 +62,8 @@ native get_user_wstats(index, wpnindex, stats[8], bodyhits[8]);
 native get_user_wrstats(index, wpnindex, stats[8], bodyhits[8]);
 
 /**
- * Retrieves the client's weapon statistics from the permanent storage on the
- * server.
+ * Retrieves the client's weapon statistics.
  *
- * @note The permanent storage is updated on every respawn or client disconnect.
- * @note Player rank is determined by the customizable "get_score" function in
- *       "data/csstats.amxx". By default it uses the difference of kills to
- *       deaths/teamkills.
  * @note For a list of possible body hitplaces see the HIT_* constants in
  *       amxconst.inc
  * @note The fields in the statistics are:
@@ -200,10 +186,6 @@ native reset_user_wstats(index);
  * Retrieves statistics from the permanent storage on the server via iterative,
  * incremental access.
  *
- * @note The permanent storage is updated on every respawn or client disconnect.
- * @note Player rank is determined by the customizable "get_score" function in
- *       "data/csstats.amxx". By default it uses the difference of kills to
- *       deaths/teamkills.
  * @note For a list of possible body hitplaces see the HIT_* constants in
  *       amxconst.inc
  * @note The fields in the statistics are:
@@ -237,9 +219,8 @@ native get_stats(index, stats[8], bodyhits[8], name[], len, authid[] = "", authi
 native get_statsnum();
 
 /**
- * Retrieves the client's objective statistics from the permanent storage.
+ * Retrieves the client's objective statistics.
  *
- * @note The permanent storage is updated on every respawn or client disconnect.
  * @note The fields in the statistics are:
  *          0 - total defusions
  *          1 - bomb defused
@@ -257,10 +238,8 @@ native get_statsnum();
 native get_user_stats2(index, stats[4]);
 
 /**
- * Retrieves objective statistics from the permanent storage on the server via
- * iterative, incremental access.
+ * Retrieves objective statistics via iterative, incremental access.
  *
- * @note The permanent storage is updated on every respawn or client disconnect.
  * @note The fields in the statistics are:
  *          0 - total defusions
  *          1 - bomb defused
@@ -276,3 +255,172 @@ native get_user_stats2(index, stats[4]);
  *                      statistics exist
  */
 native get_stats2(index, stats[4], authid[] = "", authidlen = 0);
+
+/**
+ * Returns total time spent on server.
+ *
+ * @param index         Client index
+ *
+ * @return              Total time online on server
+ */
+native get_user_total_time(index);
+
+/**
+ * Retrieves elo rank.
+ *
+ * @param index         Client index
+ *
+ * @return              Elo rank
+ * @error               If an invalid client index is provided, an error will be
+ *                      thrown.
+ */
+native Float:get_user_elo(index);
+
+/**
+ * Adds value to elo rank.
+ *
+ * @param index         Client index
+ * @param elo           Value to add
+ *
+ * @return              1 on success, 0 on error
+ * @error               If an invalid client index is provided, an error will be
+ *                      thrown.
+ */
+native add_user_elo(index, Float:elo);
+
+/**
+ * Called after a client attacks another client.
+ *
+ * @note For a list of possible weapon ids see the CSW_* constants in
+ *       amxconst.inc
+ * @note For a list of possible body hitplaces see the HIT_* constants in
+ *       amxconst.inc
+ *
+ * @param attacker  Attacker client index
+ * @param victim    Victim client index
+ * @param damage    Damage dealt to victim
+ * @param wpnindex  Weapon id
+ * @param hitplace  Body hitplace
+ * @param ta        If nonzero the attack was a team attack
+ *
+ * @noreturn
+ */
+forward client_damage(attacker, victim, damage, wpnindex, hitplace, TA);
+
+/**
+ * Called after a client death.
+ *
+ * @note For a list of possible weapon ids see the CSW_* constants in
+ *       amxconst.inc
+ * @note For a list of possible body hitplaces see the HIT_* constants in
+ *       amxconst.inc
+ *
+ * @param attacker  Attacker client index
+ * @param victim    Victim client index
+ * @param wpnindex  Weapon id
+ * @param hitplace  Body hitplace
+ * @param tk        If nonzero the death was a teamkill
+ *
+ * @noreturn
+ */
+forward client_death(killer, victim, wpnindex, hitplace, TK);
+
+/**
+ * Called after a client kill with assist.
+ *
+ * @param killer    Killer client index
+ * @param victim    Victim client index
+ * @param assistant Assistant client index
+ *
+ * @noreturn
+ */
+forward client_assist(killer, victim, assistant);
+
+/**
+ * Called after a client kill with assist.
+ *
+ * @param killer    Killer client index
+ * @param victim    Victim client index
+ * @param assistant Assistant client index
+ *
+ * @noreturn
+ */
+forward client_assist(killer, victim, assistant);
+
+/**
+ * Called after a revenge kill.
+ *
+ * @param killer    Killer client index
+ * @param victim    Victim client index
+ *
+ * @noreturn
+ */
+forward client_revenge(killer, victim);
+
+/**
+ * Called after a grenade was thrown.
+ *
+ * @note Weapon id is one of CSW_HEGRENADE, CSW_SMOKEGRENADE or CSW_FLASHBANG.
+ *
+ * @param index     Client index
+ * @param greindex  Grenade entity index
+ * @param wId       Weapon id
+ *
+ * @noreturn
+ */
+forward grenade_throw(index, greindex, wId);
+
+/**
+ * Called after a bomb plant attempt has started.
+ *
+ * @param planter   Planter client index
+ *
+ * @noreturn
+ */
+forward bomb_planting(planter);
+
+/**
+ * Called after a bomb plant has finished.
+ *
+ * @param planter   Planter client index
+ *
+ * @noreturn
+ */
+forward bomb_planted(planter);
+
+/**
+ * Called when the bomb exploded.
+ *
+ * @param planter   Planter client index
+ * @param defuser   Defuser client index, if applicable
+ *
+ * @noreturn
+ */
+forward bomb_explode(planter, defuser);
+
+/**
+ * Called after a bomb defuse attempt has started.
+ *
+ * @param defuser   Defuser client index
+ *
+ * @noreturn
+ */
+forward bomb_defusing(defuser);
+
+/**
+ * Called after a bomb defuse has finished.
+ *
+ * @param defuser   Defuser client index
+ *
+ * @noreturn
+ */
+forward bomb_defused(defuser);
+
+/**
+ * Called after client stats loading has finished.
+ *
+ * @param index   Client index
+ *
+ * @noreturn
+ */
+forward stats_loaded(index);
