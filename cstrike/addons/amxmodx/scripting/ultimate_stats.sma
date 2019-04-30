@@ -96,11 +96,11 @@ public plugin_init()
 	bind_pcvar_num(create_cvar("ultimate_stats_rank_formula", "0"), rankFormula); // 0 - kills- deaths - tk | 1 - kills | 2 - kills + hs | 3 - elo rank (skill) | 4 - played time
 	bind_pcvar_num(create_cvar("ultimate_stats_weapon_rank_formula", "0"), weaponRankFormula); // 0 - kills- deaths - tk | 1 - kills | 2 - kills + hs
 	bind_pcvar_num(create_cvar("ultimate_stats_assist_enabled", "1"), assistEnabled);
-	bind_pcvar_num(create_cvar("ultimate_stats_revenge_enabled", "0"), revengeEnabled);
 	bind_pcvar_num(create_cvar("ultimate_stats_assist_min_damage", "65"), assistMinDamage);
 	bind_pcvar_num(create_cvar("ultimate_stats_assist_money", "300"), assistMoney);
-	bind_pcvar_num(create_cvar("ultimate_stats_revenge_money", "300"), revengeMoney);
 	bind_pcvar_num(create_cvar("ultimate_stats_assist_info_enabled", "1"), assistInfoEnabled);
+	bind_pcvar_num(create_cvar("ultimate_stats_revenge_enabled", "0"), revengeEnabled);
+	bind_pcvar_num(create_cvar("ultimate_stats_revenge_money", "300"), revengeMoney);
 	bind_pcvar_num(create_cvar("ultimate_stats_revenge_info_enabled", "1"), revengeInfoEnabled);
 	bind_pcvar_num(create_cvar("ultimate_stats_leader_info_enabled", "1"), leaderInfoEnabled);
 	bind_pcvar_num(create_cvar("ultimate_stats_killer_info_enabled", "1"), killerInfoEnabled);
