@@ -106,7 +106,7 @@ public plugin_init()
 	bind_pcvar_num(create_cvar("ultimate_stats_killer_info_enabled", "1"), killerInfoEnabled);
 	bind_pcvar_num(create_cvar("ultimate_stats_victim_info_enabled", "1"), victimInfoEnabled);
 	bind_pcvar_num(create_cvar("ultimate_stats_medals_enabled", "1"), medalsEnabled);
-	bind_pcvar_num(create_cvar("ultimate_stats_prefix_enabled", "1"), soundsEnabled);
+	bind_pcvar_num(create_cvar("ultimate_stats_prefix_enabled", "1"), prefixEnabled);
 	bind_pcvar_num(create_cvar("ultimate_stats_xvsx_enabled", "1"), xvsxEnabled);
 	bind_pcvar_num(create_cvar("ultimate_stats_sounds_enabled", "1"), soundsEnabled);
 	bind_pcvar_num(create_cvar("ultimate_stats_hp_enabled", "1"), hpEnabled);
