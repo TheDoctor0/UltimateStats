@@ -1284,13 +1284,13 @@ public cmd_topme(id)
 
 	new queryData[256], queryTemp[96], playerId[2], start = 0;
 
-	if (playerStats[id][STATS_RANK] > 7) start = playerStats[id][STATS_RANK] - 7;
-	else if (playerStats[id][STATS_RANK] + 8 >= statsNum) start = statsNum - 15;
+	if (playerStats[id][STATS_RANK] > 7) start = max(0, playerStats[id][STATS_RANK] - 7);
+	else if (playerStats[id][STATS_RANK] + 8 >= statsNum) start = max(0, statsNum - 15);
 
 	playerId[0] = id;
 	playerId[1] = start;
 
-	get_rank_formula(queryTemp, charsmax(queryTemp), 0);
+	get_rank_formula(queryTemp, charsmax(queryTemp), false);
 
 	formatex(queryData, charsmax(queryData), "SELECT a.name, a.kills, a.deaths, a.hs_kills, a.shots, a.hits, a.skill FROM `ultimate_stats` a ORDER BY %s LIMIT %i, 15", queryTemp, start);
 
