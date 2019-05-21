@@ -8,7 +8,7 @@
 #include <unixtime>
 
 #define PLUGIN  "Ultimate Stats"
-#define VERSION "1.0"
+#define VERSION "1.1"
 #define AUTHOR  "O'Zone"
 
 #pragma dynamic 32768
@@ -86,6 +86,8 @@ new sqlHost[64], sqlUser[64], sqlPassword[64], sqlDatabase[64], rankSaveType, ra
 public plugin_init()
 {
 	register_plugin(PLUGIN, VERSION, AUTHOR);
+
+	register_cvar("stats_version", VERSION, FCVAR_SERVER);
 
 	bind_pcvar_string(create_cvar("ultimate_stats_host", "localhost", FCVAR_SPONLY | FCVAR_PROTECTED), sqlHost, charsmax(sqlHost));
 	bind_pcvar_string(create_cvar("ultimate_stats_user", "user", FCVAR_SPONLY | FCVAR_PROTECTED), sqlUser, charsmax(sqlUser));
@@ -1222,7 +1224,7 @@ public cmd_top15(id)
 
 	playerId[0] = id;
 
-	get_rank_formula(queryTemp, charsmax(queryTemp), 0);
+	get_rank_formula(queryTemp, charsmax(queryTemp), false);
 
 	formatex(queryData, charsmax(queryData), "SELECT a.name, a.kills, a.deaths, a.hs_kills, a.shots, a.hits, a.skill FROM `ultimate_stats` a ORDER BY %s LIMIT 15", queryTemp);
 
@@ -1360,7 +1362,7 @@ public cmd_weapon_top15(id, weapon)
 	else {
 		new queryTemp[96];
 
-		get_rank_formula(queryTemp, charsmax(queryTemp), 0, 1);
+		get_rank_formula(queryTemp, charsmax(queryTemp), false, true);
 
 		formatex(queryData, charsmax(queryData), "SELECT b.name, a.kills, a.deaths, a.hs_kills, a.shots, a.hits FROM `ultimate_stats` b JOIN `ultimate_stats_weapons` a ON b.id = a.player_id WHERE a.weapon = '%s' ORDER BY %s LIMIT 15", weaponName, queryTemp);
 	}
@@ -2086,7 +2088,7 @@ public load_weapons_stats(id)
 		return;
 	}
 
-	get_rank_formula(queryTemp, charsmax(queryTemp));
+	get_rank_formula(queryTemp, charsmax(queryTemp), _, true);
 
 	formatex(queryData, charsmax(queryData), "SELECT a.*, (SELECT COUNT(*) FROM `ultimate_stats_weapons` WHERE %s AND weapon = a.weapon) + 1 AS `rank` FROM `ultimate_stats_weapons` a WHERE `player_id` = '%i'", queryTemp, playerStats[id][PLAYER_ID]);
 
@@ -2297,7 +2299,7 @@ stock get_player_id(id)
 	return playerId;
 }
 
-stock get_rank_formula(dest[], length, where = 1, weapon = 0)
+stock get_rank_formula(dest[], length, where = true, weapon = false)
 {
 	new formula = weapon ? weaponRankFormula : rankFormula;
 
@@ -2457,7 +2459,7 @@ public native_get_stats(plugin, params)
 
 	static queryData[256], error[128], queryTemp[96], name[32], steamId[32], stats[8], hits[8], Handle:query, errorNum;
 
-	get_rank_formula(queryTemp, charsmax(queryTemp), 0);
+	get_rank_formula(queryTemp, charsmax(queryTemp), false);
 
 	formatex(queryData, charsmax(queryData), "SELECT kills, deaths, hs_kills, team_kills, shots, hits, damage, assists, h_0, h_1, h_2, h_3, h_4, h_5, h_6, h_7, name, steamid FROM `ultimate_stats` ORDER BY %s LIMIT %d, %d", queryTemp, index, index);
 
@@ -2505,7 +2507,7 @@ public native_get_stats2(plugin, params)
 
 	static queryData[192], error[128], queryTemp[96], steamId[32], objectives[4], Handle:query, errorNum;
 
-	get_rank_formula(queryTemp, charsmax(queryTemp), 0);
+	get_rank_formula(queryTemp, charsmax(queryTemp), false);
 
 	formatex(queryData, charsmax(queryData), "SELECT defusions, defused, planted, exploded, steamid FROM `ultimate_stats` ORDER BY %s LIMIT %d, %d", queryTemp, index, index);
 
