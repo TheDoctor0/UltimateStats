@@ -53,7 +53,7 @@ enum _:formulas { FORMULA_KD, FORMULA_KILLS, FORMULA_KILLS_HS, FORMULA_ELO, FORM
 enum _:playerData{ BOMB_DEFUSIONS = STATS_END, BOMB_DEFUSED, BOMB_PLANTED, BOMB_EXPLODED, SPECT, HUD_INFO, PLAYER_ID,
 	FIRST_VISIT, LAST_VISIT, TIME, CONNECTS, ASSISTS, REVENGE, REVENGES, ROUNDS, ROUNDS_CT, ROUNDS_T, WIN_CT, WIN_T,
 	BRONZE, SILVER, GOLD, MEDALS, BEST_STATS, BEST_KILLS, BEST_DEATHS, BEST_HS, CURRENT_STATS, CURRENT_KILLS,
-	CURRENT_DEATHS, CURRENT_HS, ADMIN, Float:SKILL, NAME[32], SAFE_NAME[64], STEAMID[32], IP[16] };
+	CURRENT_DEATHS, CURRENT_HS, ADMIN, ALIVE, Float:SKILL, NAME[32], SAFE_NAME[64], STEAMID[32], IP[16] };
 
 new const commands[cmds][][] = {
 	{ "cmd_menu", "\yMenu \rStatystyk", "menustaty", "say /menustaty", "say_team /menustaty", "say /statsmenu", "say_team /statsmenu", "say /statymenu", "say_team /statymenu", "", "" },
@@ -251,7 +251,11 @@ public amxbans_admin_connect(id)
 	client_authorized(id, "");
 
 public player_spawned(id)
+{
 	if (!get_bit(id, visit)) set_task(3.0, "check_time", id + TASK_TIME);
+
+	playerStats[id][ALIVE] = true;
+}
 
 public check_time(id)
 {
@@ -439,6 +443,8 @@ public cur_weapon(id)
 
 public damage(victim)
 {
+	if (!playerStats[victim][ALIVE]) return;
+
 	static damage, inflictor;
 
 	damage = read_data(2);
@@ -501,7 +507,11 @@ public damage(victim)
 			playerAStats[victim][0][hitPlace]++;
 		}
 
-		if (!is_user_alive(victim)) death(attacker, victim, weapon, hitPlace, sameTeam);
+		if (!is_user_alive(victim)) {
+			playerStats[victim][ALIVE] = false;
+
+			death(attacker, victim, weapon, hitPlace, sameTeam);
+		}
 	}
 }
 
