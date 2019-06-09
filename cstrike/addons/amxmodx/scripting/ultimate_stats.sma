@@ -42,14 +42,15 @@ new const body[][] = { "cialo", "glowa", "klatka piersiowa", "brzuch", "lewe ram
 
 enum _:forwards { FORWARD_DAMAGE, FORWARD_DEATH, FORWARD_ASSIST, FORWARD_REVENGE, FORWARD_PLANTING,
 	FORWARD_PLANTED, FORWARD_EXPLODE, FORWARD_DEFUSING, FORWARD_DEFUSED, FORWARD_THROW, FORWARD_LOADED };
-enum _:statsData { STATS_KILLS = HIT_END, STATS_DEATHS, STATS_HS, STATS_TK, STATS_SHOTS, STATS_HITS, STATS_DAMAGE, STATS_RANK };
-enum _:killerData { KILLER_ID = STATS_END, KILLER_HEALTH, KILLER_ARMOR, KILLER_TEAM, KILLER_DISTANCE };
-enum _:winers { THIRD, SECOND, FIRST };
+enum _:statsMenus { MENU_STATS, MENU_RANKSTATS };
+enum _:winer { THIRD, SECOND, FIRST };
 enum _:save { NORMAL = -1, ROUND, FINAL, MAP_END };
 enum _:types { STATS, ROUND_STATS, WEAPON_STATS, WEAPON_ROUND_STATS, ATTACKER_STATS, VICTIM_STATS };
 enum _:formulas { FORMULA_KD, FORMULA_KILLS, FORMULA_KILLS_HS };
+enum _:statsData { STATS_KILLS = HIT_END, STATS_DEATHS, STATS_HS, STATS_TK, STATS_SHOTS, STATS_HITS, STATS_DAMAGE, STATS_RANK };
+enum _:killerData { KILLER_ID = STATS_END, KILLER_HEALTH, KILLER_ARMOR, KILLER_TEAM, KILLER_DISTANCE };
 enum _:playerData{ BOMB_DEFUSIONS = STATS_END, BOMB_DEFUSED, BOMB_PLANTED, BOMB_EXPLODED, SPECT, HUD_INFO, PLAYER_ID,
-	FIRST_VISIT, LAST_VISIT, TIME, CONNECTS, ASSISTS, REVENGE, REVENGES, ROUNDS, ROUNDS_CT, ROUNDS_T, WIN_CT, WIN_T,
+	FIRST_VISIT, LAST_VISIT, TIME, STATS_MENU, CONNECTS, ASSISTS, REVENGE, REVENGES, ROUNDS, ROUNDS_CT, ROUNDS_T, WIN_CT, WIN_T,
 	BRONZE, SILVER, GOLD, MEDALS, BEST_STATS, BEST_KILLS, BEST_DEATHS, BEST_HS, CURRENT_STATS, CURRENT_KILLS,
 	CURRENT_DEATHS, CURRENT_HS, ADMIN, ALIVE, Float:SKILL, NAME[32], SAFE_NAME[64], STEAMID[32], IP[16] };
 
@@ -57,6 +58,7 @@ new const commands[][][] = {
 	{ "cmd_menu", "\yMenu \rStatystyk", "menustaty", "say /menustaty", "say_team /menustaty", "say /statsmenu", "say_team /statsmenu", "say /statymenu", "say_team /statymenu", "", "" },
 	{ "cmd_hp", "\wHP", "hp", "say /hp", "say_team /hp", "", "", "", "", "", "" },
 	{ "cmd_me", "\wMe", "me", "say /me", "say_team /me", "", "", "", "", "", "" },
+	{ "cmd_stats", "\wStats", "stats", "say /stats", "say_team /stats", "", "", "", "", "", "" },
 	{ "cmd_statsme", "\wStats \rMe", "statsme", "say /statsme", "say_team /statsme", "", "", "", "", "", "" },
 	{ "cmd_rank", "\wRank", "rank", "say /rank", "say_team /rank", "", "", "", "", "", "" },
 	{ "cmd_rankstats", "\wRank \rStats", "rankstats", "say /rankstats", "say_team /rankstats", "", "", "", "", "", "" },
@@ -67,8 +69,8 @@ new const commands[][][] = {
 	{ "cmd_time_top15", "\wCzas \rTop15", "czastop15", "say /ctop15", "say_team /ctop15", "say /czastop15", "say_team /czastop15", "say /ttop15", "say_team /ttop15", "say /topczas", "say_team /topczas" },
 	{ "cmd_skill", "\wPunkty \rELO", "skill", "say /skill", "say_team /skill", "say /elo", "say_team /elo", "", "", "", "" },
 	{ "cmd_skill_top15", "\wELO \rTop15", "elotop15", "say /etop15", "say_team /etop15", "say /elotop15", "say_team /elotop15", "say /skilltop15", "say_team /skilltop15", "say /topskill", "say_team /topskill" },
-	{ "cmd_stats", "\wNajlepsze \rStaty", "najlepszestaty", "say /staty", "say_team /staty", "say /beststats", "say_team /beststats", "say /najlepszestaty", "say_team /najlepszestaty", "", "" },
-	{ "cmd_stats_top15", "\wStaty \rTop15", "statytop15", "say /stop15", "say_team /stop15", "say /statstop15", "say_team /statstop15", "say /statytop15", "say_team /statytop15", "say /topstaty", "say_team /topstaty" },
+	{ "cmd_topstats", "\wNajlepsze \rStaty", "najlepszestaty", "say /staty", "say_team /staty", "say /beststats", "say_team /beststats", "say /najlepszestaty", "say_team /najlepszestaty", "", "" },
+	{ "cmd_topstats_top15", "\wStaty \rTop15", "statytop15", "say /stop15", "say_team /stop15", "say /statstop15", "say_team /statstop15", "say /statytop15", "say_team /statytop15", "say /topstaty", "say_team /topstaty" },
 	{ "cmd_medals", "\wZdobyte \rMedale", "medale", "say /medal", "say_team /medal", "say /medale", "say_team /medale", "say /medals", "say_team /medals", "", "" },
 	{ "cmd_medals_top15", "\wMedale \rTop15", "medaletop15", "say /mtop15", "say_team /mtop15", "say /medalstop15", "say_team /medalstop15", "say /medaletop15", "say_team /medaletop15", "say /topmedale", "say_team /topmedale" },
 	{ "cmd_sounds", "\wUstawienia \rDziekow", "dzwieki", "say /dzwiek", "say_team /dzwiek", "say /dzwieki", "say_team /dzwieki", "say /sound", "say_team /sound", "", "" },
@@ -80,8 +82,8 @@ new playerStats[MAX_PLAYERS + 1][playerData], playerRStats[MAX_PLAYERS + 1][play
 	soundHumiliation, soundLastLeft, ret, planter, defuser, hudSpectRank, hudEndRound;
 
 new sqlHost[64], sqlUser[64], sqlPassword[64], sqlDatabase[64], rankSaveType, rankFormula, assistEnabled, revengeEnabled, assistMinDamage, assistMoney, revengeMoney, assistInfoEnabled, revengeInfoEnabled,
-	leaderInfoEnabled, killerInfoEnabled, victimInfoEnabled, medalsEnabled, prefixEnabled, xvsxEnabled, soundsEnabled, hpEnabled, meEnabled, statsMeEnabled, rankEnabled, rankStatsEnabled,top15Enabled,
-	topMeEnabled, skillEnabled, timeEnabled, spectRankEnabled, victimHudEnabled, attackerHudEnabled, hsHudEnabled, disruptiveHudEnabled, bestScoreHudEnabled;
+	leaderInfoEnabled, killerInfoEnabled, victimInfoEnabled, medalsEnabled, prefixEnabled, xvsxEnabled, soundsEnabled, hpEnabled, meEnabled, statsEnabled, statsMeEnabled, rankEnabled, rankStatsEnabled,
+	top15Enabled, topMeEnabled, skillEnabled, timeEnabled, spectRankEnabled, victimHudEnabled, attackerHudEnabled, hsHudEnabled, disruptiveHudEnabled, bestScoreHudEnabled;
 
 public plugin_init()
 {
@@ -114,6 +116,7 @@ public plugin_init()
 	bind_pcvar_num(create_cvar("ultimate_stats_sounds_enabled", "1"), soundsEnabled);
 	bind_pcvar_num(create_cvar("ultimate_stats_hp_enabled", "1"), hpEnabled);
 	bind_pcvar_num(create_cvar("ultimate_stats_me_enabled", "1"), meEnabled);
+	bind_pcvar_num(create_cvar("ultimate_stats_stats_enabled", "1"), statsEnabled);
 	bind_pcvar_num(create_cvar("ultimate_stats_statsme_enabled", "1"), statsMeEnabled);
 	bind_pcvar_num(create_cvar("ultimate_stats_rank_enabled", "1"), rankEnabled);
 	bind_pcvar_num(create_cvar("ultimate_stats_rankstats_enabled", "1"), rankStatsEnabled);
@@ -854,7 +857,7 @@ public say_text(msgId, msgDest, msgEnt)
 	new id = get_msg_arg_int(1);
 
 	if (is_user_connected(id)) {
-		static tempMessage[192], message[192], chatPrefix[16];
+		new tempMessage[192], message[192], chatPrefix[16];
 
 		get_msg_arg_string(2, tempMessage, charsmax(tempMessage));
 
@@ -1064,6 +1067,10 @@ public cmd_menu(id)
 		menu_additem(menu, menuData, weaponName);
 	}
 
+	menu_setprop(menu, MPROP_EXITNAME, "Wyjscie");
+	menu_setprop(menu, MPROP_BACKNAME, "Poprzednie");
+	menu_setprop(menu, MPROP_NEXTNAME, "Nastepne");
+
 	menu_display(id, menu);
 
 	return PLUGIN_HANDLED;
@@ -1162,6 +1169,71 @@ public cmd_me(id)
 	client_print_color(id, id, "* %s. *", message);
 
 	return PLUGIN_HANDLED;
+}
+
+public cmd_stats(id)
+{
+	if (!statsEnabled) return PLUGIN_CONTINUE;
+
+	new tempId[3], menu = menu_create("\yStatystyki \rGraczy\w:", "cmd_stats_handle");
+
+	menu_additem(menu, playerStats[id][STATS_MENU] ? "Tryb: \yRank Stats" : "Tryb: \yStats");
+	menu_addblank(menu, false);
+
+	for (new i = 1; i <= MAX_PLAYERS; i++) {
+		if (!is_user_connected(i)) continue;
+
+		num_to_str(i, tempId, charsmax(tempId));
+
+		menu_additem(menu, playerStats[i][NAME], tempId);
+	}
+
+	menu_setprop(menu, MPROP_EXITNAME, "Wyjscie");
+	menu_setprop(menu, MPROP_BACKNAME, "Poprzednie");
+	menu_setprop(menu, MPROP_NEXTNAME, "Nastepne");
+
+	menu_display(id, menu);
+
+	return PLUGIN_HANDLED;
+}
+
+public cmd_stats_handle(id, menu, item)
+{
+	if (!is_user_connected(id)) return PLUGIN_HANDLED;
+
+	if (item == MENU_EXIT) {
+		menu_destroy(menu);
+
+		return PLUGIN_HANDLED;
+	}
+
+	new itemData[3], itemAccess, menuCallback;
+
+	menu_item_getinfo(menu, item, itemAccess, itemData, charsmax(itemData), _, _, menuCallback);
+
+	if (!strlen(itemData)) {
+		playerStats[id][STATS_MENU] = !playerStats[id][STATS_MENU];
+	} else {
+		new player = str_to_num(itemData);
+
+		if (!is_user_connected(player)) {
+			client_print_color(id, id, "* Wybranego gracza nie ma juz na serwerze. *");
+
+			return PLUGIN_HANDLED;
+		}
+
+		if (!playerStats[id][STATS_MENU]) {
+			cmd_statsme(id, player);
+		} else {
+			cmd_rankstats(id, player);
+		}
+	}
+
+	menu_destroy(menu);
+
+	cmd_stats(id);
+
+	return PLUGIN_CONTINUE;
 }
 
 public cmd_statsme(id, player)
@@ -1719,7 +1791,7 @@ public show_skill_top15(failState, Handle:query, error[], errorNum, playerId[], 
 	return PLUGIN_HANDLED;
 }
 
-public cmd_stats(id)
+public cmd_topstats(id)
 {
 	new queryData[192], playerId[1];
 
@@ -1730,15 +1802,15 @@ public cmd_stats(id)
 	formatex(queryData, charsmax(queryData), "SELECT `rank`, `all` FROM (SELECT COUNT(*) AS `all` FROM `ultimate_stats`) a JOIN (SELECT COUNT(*) + 1 AS `rank` FROM `ultimate_stats` WHERE best_stats > %i ORDER BY `best_stats` DESC) b",
 	playerStats[id][CURRENT_STATS] > playerStats[id][BEST_STATS] ? playerStats[id][CURRENT_STATS] : playerStats[id][BEST_STATS]);
 
-	SQL_ThreadQuery(sql, "show_stats", queryData, playerId, sizeof(playerId));
+	SQL_ThreadQuery(sql, "show_topstats", queryData, playerId, sizeof(playerId));
 
 	return PLUGIN_HANDLED;
 }
 
-public show_stats(failState, Handle:query, error[], errorNum, playerId[], dataSize)
+public show_topstats(failState, Handle:query, error[], errorNum, playerId[], dataSize)
 {
 	if (failState) {
-		log_to_file("ultimate_stats.log", "Stats SQL Error: %s (%d)", error, errorNum);
+		log_to_file("ultimate_stats.log", "TopStats SQL Error: %s (%d)", error, errorNum);
 
 		return PLUGIN_HANDLED;
 	}
@@ -1753,7 +1825,7 @@ public show_stats(failState, Handle:query, error[], errorNum, playerId[], dataSi
 	return PLUGIN_HANDLED;
 }
 
-public cmd_stats_top15(id)
+public cmd_topstats_top15(id)
 {
 	new queryData[128], playerId[1];
 
@@ -1761,15 +1833,15 @@ public cmd_stats_top15(id)
 
 	formatex(queryData, charsmax(queryData), "SELECT name, best_kills, best_hs, best_deaths FROM `ultimate_stats` ORDER BY best_stats DESC LIMIT 15");
 
-	SQL_ThreadQuery(sql, "show_stats_top15", queryData, playerId, sizeof(playerId));
+	SQL_ThreadQuery(sql, "show_topstats_top15", queryData, playerId, sizeof(playerId));
 
 	return PLUGIN_HANDLED;
 }
 
-public show_stats_top15(failState, Handle:query, error[], errorNum, playerId[], dataSize)
+public show_topstats_top15(failState, Handle:query, error[], errorNum, playerId[], dataSize)
 {
 	if (failState) {
-		log_to_file("ultimate_stats.log", "Stats Top15 SQL Error: %s (%d)", error, errorNum);
+		log_to_file("ultimate_stats.log", "TopStats Top15 SQL Error: %s (%d)", error, errorNum);
 
 		return PLUGIN_HANDLED;
 	}
@@ -1930,7 +2002,7 @@ public cmd_sounds_handle(id, menu, item)
 		return PLUGIN_HANDLED;
 	}
 
-	switch(item) {
+	switch (item) {
 		case 0: get_bit(id, soundMayTheForce) ? rem_bit(id, soundMayTheForce) : set_bit(id, soundMayTheForce);
 		case 1: get_bit(id, soundOneAndOnly) ? rem_bit(id, soundOneAndOnly) : set_bit(id, soundOneAndOnly);
 		case 2: get_bit(id, soundHumiliation) ? rem_bit(id, soundHumiliation) : set_bit(id, soundHumiliation);
