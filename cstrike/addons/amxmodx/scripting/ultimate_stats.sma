@@ -1029,7 +1029,8 @@ public show_user_hud_info(id, start)
 
 public cmd_menu(id)
 {
-	new menuData[64], weaponName[32], weaponCommand[32], menu = menu_create("\yMenu \rStatystyk\w:", "cmd_menu_handle");
+	new menuData[64], weaponName[32], shortWeaponName[32], weaponCommand[32],
+		menu = menu_create("\yMenu \rStatystyk\w:", "cmd_menu_handle");
 
 	for (new i = 1; i < sizeof(commands); i++) {
 		if (i + 1 == CMD_TIMEADMIN && !(get_user_flags(id) & ADMIN_BAN)) continue;
@@ -1045,20 +1046,21 @@ public cmd_menu(id)
 		if (i == CSW_SHIELD || i == CSW_C4 || i == CSW_FLASHBANG || i == CSW_SMOKEGRENADE) continue;
 
 		get_weaponname(i, weaponName, charsmax(weaponName));
+		copy(shortWeaponName, charsmax(shortWeaponName), weaponName);
 
 		if (i == CSW_HEGRENADE) replace_all(weaponName, charsmax(weaponName), "hegrenade", "he");
 		else if (i == CSW_UMP45) replace_all(weaponName, charsmax(weaponName), "mp5navy", "mp5");
 		else if (i == CSW_MP5NAVY) replace_all(weaponName, charsmax(weaponName), "ump45", "ump");
 
-		replace_all(weaponName, charsmax(weaponName), "weapon_", "");
+		replace_all(shortWeaponName, charsmax(shortWeaponName), "weapon_", "");
 
-		formatex(weaponCommand, charsmax(weaponCommand), "/%stop15", weaponName);
+		formatex(weaponCommand, charsmax(weaponCommand), "/%stop15", shortWeaponName);
 
-		ucfirst(weaponName);
+		ucfirst(shortWeaponName);
 
-		formatex(menuData, charsmax(menuData), "%s \rTop15 \y(%s)", weaponName, weaponCommand);
+		formatex(menuData, charsmax(menuData), "%s \rTop15 \y(%s)", shortWeaponName, weaponCommand);
 
-		menu_additem(menu, menuData, weaponCommand);
+		menu_additem(menu, menuData, weaponName);
 	}
 
 	menu_display(id, menu);
@@ -1080,7 +1082,11 @@ public cmd_menu_handle(id, menu, item)
 
 	menu_item_getinfo(menu, item, itemAccess, itemData, charsmax(itemData), _, _, menuCallback);
 
-	cmd_execute(id, itemData);
+	if (contain(itemData, "weapon_") != -1) {
+		cmd_weapon_top15(id, get_weaponid(itemData));
+	} else {
+		cmd_execute(id, itemData);
+	}
 
 	menu_destroy(menu);
 
