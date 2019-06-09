@@ -8,7 +8,7 @@
 #include <unixtime>
 
 #define PLUGIN  "Ultimate Stats"
-#define VERSION "1.1"
+#define VERSION "1.2"
 #define AUTHOR  "O'Zone"
 
 #pragma dynamic 32768
@@ -40,8 +40,6 @@
 
 new const body[][] = { "cialo", "glowa", "klatka piersiowa", "brzuch", "lewe ramie", "prawe ramie", "lewa noga", "prawa noga" };
 
-enum _:cmds { CMD_MENU, CMD_HP, CMD_ME, CMD_STATSME, CMD_RANK, CMD_RANKSTATS, CMD_TOP15, CMD_TOPME, CMD_TIME,
-	CMD_TIMEADMIN, CMD_TIMETOP15, CMD_STATS, CMD_STATSTOP15, CMD_MEDALS, CMD_MEDALSTOP15, CMD_SOUNDS };
 enum _:forwards { FORWARD_DAMAGE, FORWARD_DEATH, FORWARD_ASSIST, FORWARD_REVENGE, FORWARD_PLANTING,
 	FORWARD_PLANTED, FORWARD_EXPLODE, FORWARD_DEFUSING, FORWARD_DEFUSED, FORWARD_THROW, FORWARD_LOADED };
 enum _:statsData { STATS_KILLS = HIT_END, STATS_DEATHS, STATS_HS, STATS_TK, STATS_SHOTS, STATS_HITS, STATS_DAMAGE, STATS_RANK };
@@ -49,13 +47,13 @@ enum _:killerData { KILLER_ID = STATS_END, KILLER_HEALTH, KILLER_ARMOR, KILLER_T
 enum _:winers { THIRD, SECOND, FIRST };
 enum _:save { NORMAL = -1, ROUND, FINAL, MAP_END };
 enum _:types { STATS, ROUND_STATS, WEAPON_STATS, WEAPON_ROUND_STATS, ATTACKER_STATS, VICTIM_STATS };
-enum _:formulas { FORMULA_KD, FORMULA_KILLS, FORMULA_KILLS_HS, FORMULA_ELO, FORMULA_TIME };
+enum _:formulas { FORMULA_KD, FORMULA_KILLS, FORMULA_KILLS_HS };
 enum _:playerData{ BOMB_DEFUSIONS = STATS_END, BOMB_DEFUSED, BOMB_PLANTED, BOMB_EXPLODED, SPECT, HUD_INFO, PLAYER_ID,
 	FIRST_VISIT, LAST_VISIT, TIME, CONNECTS, ASSISTS, REVENGE, REVENGES, ROUNDS, ROUNDS_CT, ROUNDS_T, WIN_CT, WIN_T,
 	BRONZE, SILVER, GOLD, MEDALS, BEST_STATS, BEST_KILLS, BEST_DEATHS, BEST_HS, CURRENT_STATS, CURRENT_KILLS,
 	CURRENT_DEATHS, CURRENT_HS, ADMIN, ALIVE, Float:SKILL, NAME[32], SAFE_NAME[64], STEAMID[32], IP[16] };
 
-new const commands[cmds][][] = {
+new const commands[][][] = {
 	{ "cmd_menu", "\yMenu \rStatystyk", "menustaty", "say /menustaty", "say_team /menustaty", "say /statsmenu", "say_team /statsmenu", "say /statymenu", "say_team /statymenu", "", "" },
 	{ "cmd_hp", "\wHP", "hp", "say /hp", "say_team /hp", "", "", "", "", "", "" },
 	{ "cmd_me", "\wMe", "me", "say /me", "say_team /me", "", "", "", "", "", "" },
@@ -67,6 +65,8 @@ new const commands[cmds][][] = {
 	{ "cmd_time", "\wCzas \rGry", "czas", "say /czas", "say_team /czas", "say /time", "say_team /time", "", "", "", "" },
 	{ "cmd_time_admin", "\wCzas \rAdminow", "czasadmin", "say /czasadmin", "say_team /czasadmin", "say /timeadmin", "say_team /timeadmin", "say /adminczas", "say_team /adminczas", "", "" },
 	{ "cmd_time_top15", "\wCzas \rTop15", "czastop15", "say /ctop15", "say_team /ctop15", "say /czastop15", "say_team /czastop15", "say /ttop15", "say_team /ttop15", "say /topczas", "say_team /topczas" },
+	{ "cmd_skill", "\wPunkty \rELO", "skill", "say /skill", "say_team /skill", "say /elo", "say_team /elo", "", "", "", "" },
+	{ "cmd_skill_top15", "\wELO \rTop15", "elotop15", "say /etop15", "say_team /etop15", "say /elotop15", "say_team /elotop15", "say /skilltop15", "say_team /skilltop15", "say /topskill", "say_team /topskill" },
 	{ "cmd_stats", "\wNajlepsze \rStaty", "najlepszestaty", "say /staty", "say_team /staty", "say /beststats", "say_team /beststats", "say /najlepszestaty", "say_team /najlepszestaty", "", "" },
 	{ "cmd_stats_top15", "\wStaty \rTop15", "statytop15", "say /stop15", "say_team /stop15", "say /statstop15", "say_team /statstop15", "say /statytop15", "say_team /statytop15", "say /topstaty", "say_team /topstaty" },
 	{ "cmd_medals", "\wZdobyte \rMedale", "medale", "say /medal", "say_team /medal", "say /medale", "say_team /medale", "say /medals", "say_team /medals", "", "" },
@@ -79,9 +79,9 @@ new playerStats[MAX_PLAYERS + 1][playerData], playerRStats[MAX_PLAYERS + 1][play
 	Handle:sql, Handle:connection, bool:sqlConnection, bool:oneAndOnly, bool:block, bool:mapChange, round, sounds, statsLoaded, weaponStatsLoaded, visit, soundMayTheForce, soundOneAndOnly, soundPrepare,
 	soundHumiliation, soundLastLeft, ret, planter, defuser, hudSpectRank, hudEndRound;
 
-new sqlHost[64], sqlUser[64], sqlPassword[64], sqlDatabase[64], rankSaveType, rankFormula, weaponRankFormula, assistEnabled, revengeEnabled, assistMinDamage, assistMoney, revengeMoney, assistInfoEnabled,
-	revengeInfoEnabled, leaderInfoEnabled, killerInfoEnabled, victimInfoEnabled, medalsEnabled, prefixEnabled, xvsxEnabled, soundsEnabled, hpEnabled, meEnabled, statsMeEnabled, rankEnabled, rankStatsEnabled,
-	top15Enabled, topMeEnabled, spectRankEnabled, victimHudEnabled, attackerHudEnabled, hsHudEnabled, disruptiveHudEnabled, bestScoreHudEnabled;
+new sqlHost[64], sqlUser[64], sqlPassword[64], sqlDatabase[64], rankSaveType, rankFormula, assistEnabled, revengeEnabled, assistMinDamage, assistMoney, revengeMoney, assistInfoEnabled, revengeInfoEnabled,
+	leaderInfoEnabled, killerInfoEnabled, victimInfoEnabled, medalsEnabled, prefixEnabled, xvsxEnabled, soundsEnabled, hpEnabled, meEnabled, statsMeEnabled, rankEnabled, rankStatsEnabled,top15Enabled,
+	topMeEnabled, skillEnabled, timeEnabled, spectRankEnabled, victimHudEnabled, attackerHudEnabled, hsHudEnabled, disruptiveHudEnabled, bestScoreHudEnabled;
 
 public plugin_init()
 {
@@ -95,8 +95,7 @@ public plugin_init()
 	bind_pcvar_string(create_cvar("ultimate_stats_db", "database", FCVAR_SPONLY | FCVAR_PROTECTED), sqlDatabase, charsmax(sqlDatabase));
 
 	bind_pcvar_num(create_cvar("ultimate_stats_rank_save_type", "0"), rankSaveType); // 0 - nick | 1 - steamid | 2 - ip
-	bind_pcvar_num(create_cvar("ultimate_stats_rank_formula", "0"), rankFormula); // 0 - kills- deaths - tk | 1 - kills | 2 - kills + hs | 3 - elo rank (skill) | 4 - played time
-	bind_pcvar_num(create_cvar("ultimate_stats_weapon_rank_formula", "0"), weaponRankFormula); // 0 - kills- deaths - tk | 1 - kills | 2 - kills + hs
+	bind_pcvar_num(create_cvar("ultimate_stats_rank_formula", "0"), rankFormula); // 0 - kills- deaths - tk | 1 - kills | 2 - kills + hs
 	bind_pcvar_num(create_cvar("ultimate_stats_assist_enabled", "1"), assistEnabled);
 	bind_pcvar_num(create_cvar("ultimate_stats_assist_min_damage", "65"), assistMinDamage);
 	bind_pcvar_num(create_cvar("ultimate_stats_assist_money", "300"), assistMoney);
@@ -108,6 +107,8 @@ public plugin_init()
 	bind_pcvar_num(create_cvar("ultimate_stats_killer_info_enabled", "1"), killerInfoEnabled);
 	bind_pcvar_num(create_cvar("ultimate_stats_victim_info_enabled", "1"), victimInfoEnabled);
 	bind_pcvar_num(create_cvar("ultimate_stats_medals_enabled", "1"), medalsEnabled);
+	bind_pcvar_num(create_cvar("ultimate_stats_skill_enabled", "1"), skillEnabled);
+	bind_pcvar_num(create_cvar("ultimate_stats_time_enabled", "1"), timeEnabled);
 	bind_pcvar_num(create_cvar("ultimate_stats_prefix_enabled", "1"), prefixEnabled);
 	bind_pcvar_num(create_cvar("ultimate_stats_xvsx_enabled", "1"), xvsxEnabled);
 	bind_pcvar_num(create_cvar("ultimate_stats_sounds_enabled", "1"), soundsEnabled);
@@ -1033,7 +1034,7 @@ public cmd_menu(id)
 		menu = menu_create("\yMenu \rStatystyk\w:", "cmd_menu_handle");
 
 	for (new i = 1; i < sizeof(commands); i++) {
-		if (i + 1 == CMD_TIMEADMIN && !(get_user_flags(id) & ADMIN_BAN)) continue;
+		if (equal(commands[i][0], "cmd_time_admin") && !(get_user_flags(id) & ADMIN_BAN)) continue;
 
 		formatex(menuData, charsmax(menuData), "%s \y(%s)", commands[i][1], commands[i][3]);
 
@@ -1257,7 +1258,7 @@ public show_top15(failState, Handle:query, error[], errorNum, playerId[], dataSi
 		return PLUGIN_HANDLED;
 	}
 
-	static motdData[2048], name[32], Float:elo, motdLength, place, kills, deaths, hs, shots, hits;
+	static motdData[2048], name[32], motdLength, place, kills, deaths, hs, shots, hits;
 
 	motdLength = 0, place = 0;
 
@@ -1265,8 +1266,7 @@ public show_top15(failState, Handle:query, error[], errorNum, playerId[], dataSi
 
 	motdLength = format(motdData, charsmax(motdData), "<body bgcolor=#000000><font color=#FFB000><pre>");
 
-	if (rankFormula == FORMULA_ELO) motdLength += format(motdData[motdLength], charsmax(motdData) - motdLength, "%2s %-22.22s %4s %5s %7s %2s %6s %4s %4s %4s^n", "#", "Nick", "Skill", "Zabojstwa", "Zgony", "HS", "Trafienia", "Strzaly", "Efe.", "Cel.");
-	else motdLength += format(motdData[motdLength], charsmax(motdData) - motdLength, "%2s %-22.22s %5s %7s %2s %6s %4s %4s %4s^n", "#", "Nick", "Zabojstwa", "Zgony", "HS", "Trafienia", "Strzaly", "Efe.", "Cel.");
+	motdLength += format(motdData[motdLength], charsmax(motdData) - motdLength, "%2s %-22.22s %5s %7s %2s %6s %4s %4s %4s^n", "#", "Nick", "Zabojstwa", "Zgony", "HS", "Trafienia", "Strzaly", "Efe.", "Cel.");
 
 	while (SQL_MoreResults(query)) {
 		place++;
@@ -1282,11 +1282,7 @@ public show_top15(failState, Handle:query, error[], errorNum, playerId[], dataSi
 		shots = SQL_ReadResult(query, 4);
 		hits = SQL_ReadResult(query, 5);
 
-		if (rankFormula == FORMULA_ELO) {
-			SQL_ReadResult(query, 6, elo);
-
-			motdLength += format(motdData[motdLength], charsmax(motdData) - motdLength, "%2d %-22.22s %4.2f %6d %7d %6d %7d %7d %3.0f%% %3.0f%%^n", place, name, elo, kills, deaths, hs, hits, shots, effec(kills, deaths), accuracy(shots, hits));
-		} else motdLength += format(motdData[motdLength], charsmax(motdData) - motdLength, "%2d %-22.22s %6d %7d %6d %7d %7d %3.0f%% %3.0f%%^n", place, name, kills, deaths, hs, hits, shots, effec(kills, deaths), accuracy(shots, hits));
+		motdLength += format(motdData[motdLength], charsmax(motdData) - motdLength, "%2d %-22.22s %6d %7d %6d %7d %7d %3.0f%% %3.0f%%^n", place, name, kills, deaths, hs, hits, shots, effec(kills, deaths), accuracy(shots, hits));
 
 		SQL_NextRow(query);
 	}
@@ -1325,7 +1321,7 @@ public show_topme(failState, Handle:query, error[], errorNum, playerId[], dataSi
 		return PLUGIN_HANDLED;
 	}
 
-	static motdData[2048], name[32], Float:elo, motdLength, kills, deaths, hs, shots, hits;
+	static motdData[2048], name[32], motdLength, kills, deaths, hs, shots, hits;
 
 	motdLength = 0;
 
@@ -1333,8 +1329,7 @@ public show_topme(failState, Handle:query, error[], errorNum, playerId[], dataSi
 
 	motdLength = format(motdData, charsmax(motdData), "<body bgcolor=#000000><font color=#FFB000><pre>");
 
-	if (rankFormula == FORMULA_ELO) motdLength += format(motdData[motdLength], charsmax(motdData) - motdLength, "%2s %-22.22s %4s %5s %7s %2s %6s %4s %4s %4s^n", "#", "Nick", "Skill", "Zabojstwa", "Zgony", "HS", "Trafienia", "Strzaly", "Efe.", "Cel.");
-	else motdLength += format(motdData[motdLength], charsmax(motdData) - motdLength, "%2s %-22.22s %5s %7s %2s %6s %4s %4s %4s^n", "#", "Nick", "Zabojstwa", "Zgony", "HS", "Trafienia", "Strzaly", "Efe.", "Cel.");
+	motdLength += format(motdData[motdLength], charsmax(motdData) - motdLength, "%2s %-22.22s %5s %7s %2s %6s %4s %4s %4s^n", "#", "Nick", "Zabojstwa", "Zgony", "HS", "Trafienia", "Strzaly", "Efe.", "Cel.");
 
 	while (SQL_MoreResults(query)) {
 		place++;
@@ -1350,11 +1345,7 @@ public show_topme(failState, Handle:query, error[], errorNum, playerId[], dataSi
 		shots = SQL_ReadResult(query, 4);
 		hits = SQL_ReadResult(query, 5);
 
-		if (rankFormula == FORMULA_ELO) {
-			SQL_ReadResult(query, 6, elo);
-
-			motdLength += format(motdData[motdLength], charsmax(motdData) - motdLength, "%2d %-22.22s %4.2f %6d %7d %6d %7d %7d %3.0f%% %3.0f%%^n", place, name, elo, kills, deaths, hs, hits, shots, effec(kills, deaths), accuracy(shots, hits));
-		} else motdLength += format(motdData[motdLength], charsmax(motdData) - motdLength, "%2d %-22.22s %6d %7d %6d %7d %7d %3.0f%% %3.0f%%^n", place, name, kills, deaths, hs, hits, shots, effec(kills, deaths), accuracy(shots, hits));
+		motdLength += format(motdData[motdLength], charsmax(motdData) - motdLength, "%2d %-22.22s %6d %7d %6d %7d %7d %3.0f%% %3.0f%%^n", place, name, kills, deaths, hs, hits, shots, effec(kills, deaths), accuracy(shots, hits));
 
 		SQL_NextRow(query);
 	}
@@ -1366,6 +1357,8 @@ public show_topme(failState, Handle:query, error[], errorNum, playerId[], dataSi
 
 public cmd_weapon_top15(id, weapon)
 {
+	if (!top15Enabled) return PLUGIN_CONTINUE;
+
 	new queryData[512], weaponName[32], playerId[2];
 
 	get_weaponname(weapon, weaponName, charsmax(weaponName));
@@ -1378,7 +1371,7 @@ public cmd_weapon_top15(id, weapon)
 	else {
 		new queryTemp[96];
 
-		get_rank_formula(queryTemp, charsmax(queryTemp), false, true);
+		get_rank_formula(queryTemp, charsmax(queryTemp), false);
 
 		formatex(queryData, charsmax(queryData), "SELECT b.name, a.kills, a.deaths, a.hs_kills, a.shots, a.hits FROM `ultimate_stats` b JOIN `ultimate_stats_weapons` a ON b.id = a.player_id WHERE a.weapon = '%s' ORDER BY %s LIMIT 15", weaponName, queryTemp);
 	}
@@ -1477,6 +1470,8 @@ public show_weapon_top15(failState, Handle:query, error[], errorNum, playerId[],
 
 public cmd_time(id)
 {
+	if (!timeEnabled) return PLUGIN_CONTINUE;
+
 	new queryData[192], playerId[1];
 
 	playerId[0] = id;
@@ -1516,7 +1511,7 @@ public show_time(failState, Handle:query, error[], errorNum, playerId[], dataSiz
 
 public cmd_time_admin(id)
 {
-	if (!(get_user_flags(id) & ADMIN_BAN)) return;
+	if (!(get_user_flags(id) & ADMIN_BAN) || !timeEnabled) return PLUGIN_CONTINUE;
 
 	new queryData[128], playerId[1];
 
@@ -1525,6 +1520,8 @@ public cmd_time_admin(id)
 	formatex(queryData, charsmax(queryData), "SELECT name, time FROM `ultimate_stats` WHERE admin = 1 ORDER BY time DESC");
 
 	SQL_ThreadQuery(sql, "show_time_admin", queryData, playerId, sizeof(playerId));
+
+	return PLUGIN_HANDLED;
 }
 
 public show_time_admin(failState, Handle:query, error[], errorNum, playerId[], dataSize)
@@ -1578,6 +1575,8 @@ public show_time_admin(failState, Handle:query, error[], errorNum, playerId[], d
 
 public cmd_time_top15(id)
 {
+	if (!timeEnabled) return PLUGIN_CONTINUE;
+
 	new queryData[128], playerId[1];
 
 	playerId[0] = id;
@@ -1585,6 +1584,8 @@ public cmd_time_top15(id)
 	formatex(queryData, charsmax(queryData), "SELECT name, time FROM `ultimate_stats` ORDER BY time DESC LIMIT 15");
 
 	SQL_ThreadQuery(sql, "show_time_top15", queryData, playerId, sizeof(playerId));
+
+	return PLUGIN_HANDLED;
 }
 
 public show_time_top15(failState, Handle:query, error[], errorNum, playerId[], dataSize)
@@ -1632,6 +1633,88 @@ public show_time_top15(failState, Handle:query, error[], errorNum, playerId[], d
 	}
 
 	show_motd(id, motdData, "Top15 Czasu Gry");
+
+	return PLUGIN_HANDLED;
+}
+
+public cmd_skill(id)
+{
+	if (!skillEnabled) return PLUGIN_CONTINUE;
+
+	new queryData[192], playerId[1];
+
+	playerId[0] = id;
+
+	formatex(queryData, charsmax(queryData), "SELECT `rank`, `all` FROM (SELECT COUNT(*) AS `all` FROM `ultimate_stats`) a JOIN (SELECT COUNT(*) + 1 AS `rank` FROM `ultimate_stats` WHERE skill > %f ORDER BY time DESC) b", playerStats[id][SKILL]);
+
+	SQL_ThreadQuery(sql, "show_skill", queryData, playerId, sizeof(playerId));
+
+	return PLUGIN_HANDLED;
+}
+
+public show_skill(failState, Handle:query, error[], errorNum, playerId[], dataSize)
+{
+	if (failState) {
+		log_to_file("ultimate_stats.log", "Skill SQL Error: %s (%d)", error, errorNum);
+
+		return PLUGIN_HANDLED;
+	}
+
+	new id = playerId[0], rank = SQL_ReadResult(query, 0), players = SQL_ReadResult(query, 1);
+
+	client_print_color(id, id, "* Aktualnie posiadasz^x04 %.2f^x01 skilla (punktow ELO). *", playerStats[id][SKILL]);
+	client_print_color(id, id, "* Zajmujesz^x03 %i^x01 na^x03 %i^x01 miejsce w rankingu skilla. *", rank, players);
+
+	return PLUGIN_HANDLED;
+}
+
+public cmd_skill_top15(id)
+{
+	if (!skillEnabled) return PLUGIN_CONTINUE;
+
+	new queryData[128], playerId[1];
+
+	playerId[0] = id;
+
+	formatex(queryData, charsmax(queryData), "SELECT name, skill FROM `ultimate_stats` ORDER BY skill DESC LIMIT 15");
+
+	SQL_ThreadQuery(sql, "show_skill_top15", queryData, playerId, sizeof(playerId));
+
+	return PLUGIN_HANDLED;
+}
+
+public show_skill_top15(failState, Handle:query, error[], errorNum, playerId[], dataSize)
+{
+	if (failState) {
+		log_to_file("ultimate_stats.log", "Skill Top15 SQL Error: %s (%d)", error, errorNum);
+
+		return PLUGIN_HANDLED;
+	}
+
+	static motdData[2048], name[32], Float:elo, motdLength, place;
+
+	motdLength = 0, place = 0;
+
+	new id = playerId[0];
+
+	motdLength = format(motdData, charsmax(motdData), "<body bgcolor=#000000><font color=#FFB000><pre>");
+	motdLength += format(motdData[motdLength], charsmax(motdData) - motdLength, "%2s %-22.22s %9s^n", "#", "Nick", "Skill (ELO)");
+
+	while (SQL_MoreResults(query)) {
+		place++;
+
+		SQL_ReadResult(query, 0, name, charsmax(name));
+		SQL_ReadResult(query, 1, elo);
+
+		replace_all(name, charsmax(name), "<", "");
+		replace_all(name, charsmax(name), ">", "");
+
+		motdLength += format(motdData[motdLength], charsmax(motdData) - motdLength, "%2i %-22.22s %.2f^n", place, name, elo);
+
+		SQL_NextRow(query);
+	}
+
+	show_motd(id, motdData, "Top15 Skilla");
 
 	return PLUGIN_HANDLED;
 }
@@ -1725,6 +1808,8 @@ public show_stats_top15(failState, Handle:query, error[], errorNum, playerId[], 
 
 public cmd_medals(id)
 {
+	if (!medalsEnabled) return PLUGIN_CONTINUE;
+
 	new queryData[192], playerId[1];
 
 	playerId[0] = id;
@@ -1754,6 +1839,8 @@ public show_medals(failState, Handle:query, error[], errorNum, playerId[], dataS
 
 public cmd_medals_top15(id)
 {
+	if (!medalsEnabled) return PLUGIN_CONTINUE;
+
 	new queryData[128], playerId[1];
 
 	playerId[0] = id;
@@ -2104,7 +2191,7 @@ public load_weapons_stats(id)
 		return;
 	}
 
-	get_rank_formula(queryTemp, charsmax(queryTemp), _, true);
+	get_rank_formula(queryTemp, charsmax(queryTemp));
 
 	formatex(queryData, charsmax(queryData), "SELECT a.*, (SELECT COUNT(*) FROM `ultimate_stats_weapons` WHERE %s AND weapon = a.weapon) + 1 AS `rank` FROM `ultimate_stats_weapons` a WHERE `player_id` = '%i'", queryTemp, playerStats[id][PLAYER_ID]);
 
@@ -2315,16 +2402,12 @@ stock get_player_id(id)
 	return playerId;
 }
 
-stock get_rank_formula(dest[], length, where = true, weapon = false)
+stock get_rank_formula(dest[], length, where = true)
 {
-	new formula = weapon ? weaponRankFormula : rankFormula;
-
-	switch (formula) {
+	switch (rankFormula) {
 		case FORMULA_KD: formatex(dest, length, "(a.kills - a.deaths - a.team_kills)%s", where ? " < (kills - deaths - team_kills)" : " DESC, a.kills DESC, a.hs_kills DESC");
 		case FORMULA_KILLS: formatex(dest, length, "(a.kills)%s", where ? " < (kills)" : " DESC, a.kills, a.hs_kills DESC");
 		case FORMULA_KILLS_HS: formatex(dest, length, "(a.kills + a.hs_kills)%s", where ? " < (kills + hs_kills)" : " DESC, a.kills, a.hs_kills DESC");
-		case FORMULA_ELO: formatex(dest, length, "(a.skill)%s", where ? " < (skill)" : " DESC, a.kills, a.hs_kills DESC");
-		case FORMULA_TIME: formatex(dest, length, "(a.time)%s", where ? " < (time)" : " DESC, a.kills, a.hs_kills DESC");
 	}
 }
 
