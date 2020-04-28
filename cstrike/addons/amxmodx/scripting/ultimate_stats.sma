@@ -9,7 +9,7 @@
 #include <unixtime>
 
 #define PLUGIN  "Ultimate Stats"
-#define VERSION "1.2"
+#define VERSION "1.3"
 #define AUTHOR  "O'Zone"
 
 #pragma dynamic 32768
