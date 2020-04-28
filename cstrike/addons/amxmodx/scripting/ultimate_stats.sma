@@ -5,6 +5,7 @@
 #include <nvault>
 #include <sqlx>
 #include <fun>
+#include <engine>
 #include <unixtime>
 
 #define PLUGIN  "Ultimate Stats"
@@ -183,7 +184,7 @@ public plugin_init()
 
 public plugin_natives()
 {
-	register_library("ultimatestats");
+	register_library("ultimate_stats");
 
 	register_native("get_statsnum", "native_get_statsnum");
 	register_native("get_stats", "native_get_stats");
@@ -196,13 +197,23 @@ public plugin_natives()
 	register_native("get_user_wrstats", "native_get_user_wrstats");
 	register_native("get_user_vstats", "native_get_user_vstats");
 	register_native("get_user_astats", "native_get_user_astats");
-	register_native("get_user_total_time", "native_get_user_total_time");
-	register_native("get_user_elo", "native_get_user_elo");
-	register_native("add_user_elo", "native_add_user_elo");
 	register_native("reset_user_wstats", "native_reset_user_wstats");
+
+	register_native("get_map_objectives", "native_get_map_objectives");
+	register_native("xmod_get_maxweapons", "native_xmod_get_maxweapons");
+	register_native("xmod_get_stats_size", "native_xmod_get_stats_size");
+	register_native("xmod_is_melee_wpn", "native_xmod_is_melee_wpn");
+	register_native("xmod_is_custom_wpn", "native_xmod_is_custom_wpn");
+	register_native("xmod_get_wpnname", "native_xmod_get_wpnname");
+	register_native("xmod_get_wpnlogname", "native_xmod_get_wpnlogname");
 	register_native("custom_weapon_add", "native_not_supported");
 	register_native("custom_weapon_dmg", "native_not_supported");
 	register_native("custom_weapon_shot", "native_not_supported");
+	register_native("register_statsfwd", "native_not_supported");
+
+	register_native("get_user_total_time", "native_get_user_total_time");
+	register_native("get_user_elo", "native_get_user_elo");
+	register_native("add_user_elo", "native_add_user_elo");
 }
 
 public plugin_cfg()
@@ -2943,6 +2954,43 @@ public native_get_user_vstats(plugin, params)
 	return hits[HIT_GENERIC];
 }
 
+public native_get_map_objectives(plugin, params)
+{
+	if (params != 0) {
+		log_error(AMX_ERR_NATIVE, "Bad arguments num, expected 0, passed %d.", params);
+
+		return 0;
+	}
+
+	enum  { MapObjective_Bomb = (1<<0), MapObjective_Hostage = (1<<1) };
+
+	new const bombSites[][] = { "func_bomb_target", "info_bomb_target" };
+
+	new bombSite = -1;
+
+	for (new i = 0; i < sizeof bombSites; i++) {
+		bombSite = find_ent_by_class(-1, bombSites[i]);
+
+		if (bombSite != -1) {
+			return MapObjective_Bomb;
+		}
+	}
+
+	new const hostZones[][] = { "func_hostage_rescue", "info_hostage_rescue" };
+
+	new hostZone = -1;
+
+	for (new i = 0; i < sizeof hostZones; i++) {
+		hostZone = find_ent_by_class(-1, hostZones[i]);
+
+		if (hostZone != -1) {
+			return MapObjective_Hostage;
+		}
+	}
+
+	return 0;
+}
+
 public native_get_user_total_time(plugin, params)
 {
 	if (params < 1) {
@@ -3030,4 +3078,104 @@ public native_not_supported(plugin, params)
 	log_error(AMX_ERR_NATIVE, "Native not supported!");
 
 	return 0;
+}
+
+public native_xmod_get_maxweapons(plugin, params)
+{
+	if (params != 0) {
+		log_error(AMX_ERR_NATIVE, "Bad arguments num, expected 0, passed %d.", params);
+
+		return 0;
+	}
+
+	return WEAPONS_END;
+}
+
+public native_xmod_get_stats_size(plugin, params)
+{
+	if (params != 0) {
+		log_error(AMX_ERR_NATIVE, "Bad arguments num, expected 0, passed %d.", params);
+
+		return 0;
+	}
+
+	return HIT_END;
+}
+
+public native_xmod_is_melee_wpn(plugin, params)
+{
+	if (params != 0) {
+		log_error(AMX_ERR_NATIVE, "Bad arguments num, expected 0, passed %d.", params);
+
+		return 0;
+	}
+
+	new weapon = get_param(1);
+
+	if (weapon >= WEAPONS_END) {
+		log_error(AMX_ERR_NATIVE, "Invalid weapon index.");
+
+		return 0;
+	}
+
+	return weapon == CSW_KNIFE ? 1 : 0;
+}
+
+public native_xmod_is_custom_wpn(plugin, params)
+{
+	if (params != 1) {
+		log_error(AMX_ERR_NATIVE, "Bad arguments num, expected 0, passed %d.", params);
+
+		return 0;
+	}
+
+	return 0;
+}
+
+public native_xmod_get_wpnname(plugin, params)
+{
+	if (params != 0) {
+		log_error(AMX_ERR_NATIVE, "Bad arguments num, expected 0, passed %d.", params);
+
+		return;
+	}
+
+	new weapon = get_param(1);
+
+	if (weapon >= WEAPONS_END) {
+		log_error(AMX_ERR_NATIVE, "Invalid weapon index.");
+
+		return;
+	}
+
+	static weaponName[32];
+
+	get_weaponname(weapon, weaponName, charsmax(weaponName));
+
+	replace(weaponName, charsmax(weaponName), "weapon_", "");
+
+	set_string(2, weaponName, get_param(3));
+}
+
+public native_xmod_get_wpnlogname(plugin, params)
+{
+	if (params != 0) {
+		log_error(AMX_ERR_NATIVE, "Bad arguments num, expected 0, passed %d.", params);
+
+		return;
+	}
+
+	new weapon = get_param(1);
+
+	if (weapon >= WEAPONS_END) {
+		log_error(AMX_ERR_NATIVE, "Invalid weapon index.");
+
+		return;
+	}
+
+	static weaponName[32];
+
+	get_weaponname(weapon, weaponName, charsmax(weaponName));
+
+	set_string(2, weaponName, get_param(3));
 }
