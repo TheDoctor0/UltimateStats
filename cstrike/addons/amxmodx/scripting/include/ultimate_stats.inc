@@ -303,6 +303,24 @@ native Float:get_user_elo(index);
 native add_user_elo(index, Float:elo);
 
 /**
+ * @error               Native not supported
+ */
+#pragma deprecated Native not supported!
+native custom_weapon_add(const weaponName[], melee = 0, const logName[] = "");
+
+/**
+ * @error               Native not supported
+ */
+#pragma error Native not supported!
+native custom_weapon_dmg(weapon, attacker, victim, damage, hitPlace = 0);
+
+/**
+ * @error               Native not supported
+ */
+#pragma deprecated Native not supported!
+native custom_weapon_shot(weapon, index);
+
+/**
  * Called after a client attacks another client.
  *
  * @note For a list of possible weapon ids see the CSW_* constants in

@@ -200,6 +200,9 @@ public plugin_natives()
 	register_native("get_user_elo", "native_get_user_elo");
 	register_native("add_user_elo", "native_add_user_elo");
 	register_native("reset_user_wstats", "native_reset_user_wstats");
+	register_native("custom_weapon_add", "native_not_supported");
+	register_native("custom_weapon_dmg", "native_not_supported");
+	register_native("custom_weapon_shot", "native_not_supported");
 }
 
 public plugin_cfg()
@@ -3020,4 +3023,11 @@ public native_reset_user_wstats(plugin, params)
 	clear_stats(id, 1);
 
 	return 1;
+}
+
+public native_not_supported(plugin, params)
+{
+	log_error(AMX_ERR_NATIVE, "Native not supported!");
+
+	return 0;
 }
