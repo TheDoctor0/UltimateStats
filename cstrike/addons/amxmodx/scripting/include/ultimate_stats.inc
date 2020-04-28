@@ -261,6 +261,16 @@ native get_user_stats2(index, stats[4]);
 native get_stats2(index, stats[4], authid[] = "", authidlen = 0);
 
 /**
+ * Returns current user ranking position.
+ *
+ * @param index         Client index
+ *
+ * @return              Players rank > 0 on success, or 0 if player is not ranked
+ *                      and no statistics are available
+ */
+native get_user_rank(index);
+
+/**
  * Returns total time spent on server.
  *
  * @param index         Client index

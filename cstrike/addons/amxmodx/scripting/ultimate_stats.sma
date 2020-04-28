@@ -190,6 +190,7 @@ public plugin_natives()
 	register_native("get_stats2", "native_get_stats2");
 	register_native("get_user_stats", "native_get_user_stats");
 	register_native("get_user_stats2", "native_get_user_stats2");
+	register_native("get_user_rank", "native_get_user_rank");
 	register_native("get_user_wstats", "native_get_user_wstats");
 	register_native("get_user_rstats", "native_get_user_rstats");
 	register_native("get_user_wrstats", "native_get_user_wrstats");
@@ -2659,7 +2660,7 @@ public native_get_stats(plugin, params)
 
 	if (params == 5) set_string(4, steamId, charsmax(steamId));
 
-	return 1;
+	return max(0, index - 1);
 }
 
 public native_get_stats2(plugin, params)
@@ -2702,7 +2703,7 @@ public native_get_stats2(plugin, params)
 
 	if (params == 3) set_string(3, steamId, charsmax(steamId));
 
-	return 1;
+	return max(0, index - 1);
 }
 
 public native_get_user_stats(plugin, params)
@@ -2729,7 +2730,7 @@ public native_get_user_stats(plugin, params)
 	set_array(2, stats, sizeof(stats));
 	set_array(3, hits, sizeof(hits));
 
-	return 1;
+	return playerStats[id][STATS_RANK];
 }
 
 public native_get_user_stats2(plugin, params)
@@ -2754,7 +2755,26 @@ public native_get_user_stats2(plugin, params)
 
 	set_array(2, objectives, sizeof(objectives));
 
-	return 1;
+	return playerStats[id][STATS_RANK];
+}
+
+public native_get_user_rank(plugin, params)
+{
+	if (params < 1) {
+		log_error(AMX_ERR_NATIVE, "Bad arguments num, expected 1, passed %d.", params);
+
+		return 0;
+	}
+
+	new id = get_param(1);
+
+	if (!is_user_valid(id)) {
+		log_error(AMX_ERR_NATIVE, "Invalid player - %i.", id);
+
+		return 0;
+	}
+
+	return playerStats[id][STATS_RANK];
 }
 
 public native_get_user_wstats(plugin, params)
