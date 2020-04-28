@@ -3,6 +3,10 @@
 #endif
 #define _ultimate_stats_included
 
+#if !defined client_print_color || !defined MAX_NAME_LENGTH
+    #error THIS VERSION IS NOT SUPPORTED! PLEASE USE AMXX 1.8.3+!
+#endif
+
 /**
  * Retrieves the client's current weapon statistics.
  *
