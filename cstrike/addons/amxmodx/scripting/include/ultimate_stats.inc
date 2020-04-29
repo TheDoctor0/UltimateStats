@@ -372,9 +372,10 @@ native custom_weapon_shot(weapon, index);
 native register_statsfwd(ftype);
 
 /**
- * @error               Stock not implemented
+ * @error               Native not implemented
  */
-stock ts_weaponspawn(const weaponid[], const duration[], const extraclip[], const spawnflags[], const Float:origin[3]);
+#pragma deprecated Native not implemented!
+native ts_weaponspawn(const weaponid[], const duration[], const extraclip[], const spawnflags[], const Float:origin[3]);
 
 /**
  * Called after a client attacks another client.

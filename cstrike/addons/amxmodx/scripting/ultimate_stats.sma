@@ -210,6 +210,7 @@ public plugin_natives()
 	register_native("custom_weapon_dmg", "native_not_supported");
 	register_native("custom_weapon_shot", "native_not_supported");
 	register_native("register_statsfwd", "native_not_supported");
+	register_native("ts_weaponspawn", "native_not_supported");
 
 	register_native("get_user_total_time", "native_get_user_total_time");
 	register_native("get_user_elo", "native_get_user_elo");
